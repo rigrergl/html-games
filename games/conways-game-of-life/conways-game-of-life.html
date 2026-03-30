@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Conway's Game of Life</title>
 <style>
   * {
@@ -10,19 +11,24 @@
     box-sizing: border-box;
   }
 
-  body {
+  html, body {
+    height: 100%;
     background: #000;
     color: #33ff33;
     font-family: "Courier New", Courier, monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-    padding: 16px;
+    overflow: hidden;
     user-select: none;
   }
 
-  /* CRT phosphor glow effect */
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 12px 8px;
+    gap: 0;
+  }
+
+  /* CRT phosphor scanline overlay */
   body::before {
     content: "";
     position: fixed;
@@ -39,29 +45,35 @@
   }
 
   h1 {
-    font-size: 18px;
-    letter-spacing: 6px;
+    font-size: clamp(12px, 2.5vw, 18px);
+    letter-spacing: clamp(2px, 1vw, 6px);
     text-transform: uppercase;
     color: #33ff33;
     text-shadow: 0 0 8px #33ff33, 0 0 16px #33ff33;
-    margin-bottom: 4px;
     font-weight: normal;
+    white-space: nowrap;
   }
 
   .subtitle {
-    font-size: 10px;
-    letter-spacing: 3px;
+    font-size: clamp(8px, 1.5vw, 10px);
+    letter-spacing: clamp(1px, 0.6vw, 3px);
     color: #1a8c1a;
-    margin-bottom: 14px;
     text-shadow: 0 0 6px #1a8c1a;
+    margin-bottom: 6px;
   }
 
   #canvas-wrapper {
-    position: relative;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: crosshair;
     border: 1px solid #1a8c1a;
     box-shadow: 0 0 12px rgba(51,255,51,0.25), inset 0 0 8px rgba(0,0,0,0.5);
-    cursor: crosshair;
     line-height: 0;
+    overflow: hidden;
   }
 
   canvas {
@@ -72,8 +84,8 @@
   .controls {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-top: 14px;
+    gap: 6px;
+    margin-top: 7px;
     flex-wrap: wrap;
     justify-content: center;
   }
@@ -81,14 +93,14 @@
   .ctrl-group {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     border: 1px solid #1a5c1a;
-    padding: 5px 10px;
+    padding: 4px 8px;
     background: #000;
   }
 
   .ctrl-label {
-    font-size: 9px;
+    font-size: clamp(7px, 1.2vw, 9px);
     letter-spacing: 2px;
     color: #1a8c1a;
     text-transform: uppercase;
@@ -99,14 +111,16 @@
     color: #33ff33;
     border: 1px solid #33ff33;
     font-family: "Courier New", Courier, monospace;
-    font-size: 11px;
+    font-size: clamp(9px, 1.5vw, 11px);
     letter-spacing: 1px;
-    padding: 4px 10px;
+    padding: 4px 8px;
     cursor: pointer;
     text-transform: uppercase;
     text-shadow: 0 0 6px #33ff33;
     box-shadow: 0 0 4px rgba(51,255,51,0.2);
     transition: background 0.1s, color 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   button:hover {
@@ -127,15 +141,15 @@
   }
 
   .speed-btn {
-    min-width: 32px;
+    min-width: 28px;
     text-align: center;
   }
 
   .stats {
     display: flex;
-    gap: 24px;
-    margin-top: 10px;
-    font-size: 11px;
+    gap: clamp(10px, 3vw, 24px);
+    margin-top: 5px;
+    font-size: clamp(9px, 1.5vw, 11px);
     letter-spacing: 2px;
     color: #1a8c1a;
   }
@@ -146,16 +160,15 @@
   }
 
   .hint {
-    margin-top: 10px;
-    font-size: 9px;
-    letter-spacing: 2px;
+    margin-top: 4px;
+    font-size: clamp(7px, 1.2vw, 9px);
+    letter-spacing: 1px;
     color: #0d5c0d;
     text-align: center;
   }
 
-  .divider {
-    color: #1a5c1a;
-    font-size: 11px;
+  @media (max-width: 480px) {
+    .hint { display: none; }
   }
 </style>
 </head>
@@ -195,13 +208,17 @@
 <div class="hint">CLICK OR DRAG TO TOGGLE CELLS &nbsp;|&nbsp; PLAY/PAUSE: SPACE</div>
 
 <script>
-  // --- Config ---
-  const CELL = 11;          // px per cell (classic chunky look)
-  const COLS = 70;
-  const ROWS = 50;
   const DEAD_COLOR  = '#000000';
   const ALIVE_COLOR = '#33ff33';
   const GRID_COLOR  = '#0a2a0a';
+  const MIN_CELL = 6;
+  const MAX_CELL = 14;
+  const FRAME_MS = 120; // ms per step at 1x
+
+  // --- Mutable layout (recomputed on resize) ---
+  let CELL = 11;
+  let COLS = 70;
+  let ROWS = 50;
 
   // --- State ---
   let grid = new Uint8Array(COLS * ROWS);
@@ -209,19 +226,59 @@
   let running = true;
   let generation = 0;
   let speedMult = 1;
-  let frameInterval = 120; // ms at 1x
   let lastStep = 0;
-  let animId = null;
 
   // Drawing state
-  let isMouseDown = false;
-  let drawMode = null; // true = drawing alive, false = drawing dead
+  let isPointerDown = false;
+  let drawMode = null;
 
-  // --- Canvas setup ---
+  // --- Canvas ---
   const canvas = document.getElementById('grid');
   const ctx = canvas.getContext('2d');
-  canvas.width  = COLS * CELL;
-  canvas.height = ROWS * CELL;
+  const wrapper = document.getElementById('canvas-wrapper');
+
+  // --- Layout: fit canvas to wrapper ---
+  function computeLayout() {
+    const w = wrapper.clientWidth;
+    const h = wrapper.clientHeight;
+    if (w <= 0 || h <= 0) return false;
+
+    // Pick the largest cell size where grid still fits
+    const cellByW = Math.floor(w / 10); // at least 10 cols
+    const cellByH = Math.floor(h / 8);  // at least 8 rows
+    const rawCell = Math.min(cellByW, cellByH);
+    const cell = Math.max(MIN_CELL, Math.min(MAX_CELL, rawCell));
+
+    const cols = Math.floor(w / cell);
+    const rows = Math.floor(h / cell);
+
+    if (cols === COLS && rows === ROWS && cell === CELL) return false;
+
+    // Preserve existing cells by mapping old grid → new grid
+    const oldGrid = grid;
+    const oldCols = COLS;
+    const oldRows = ROWS;
+
+    CELL = cell;
+    COLS = cols;
+    ROWS = rows;
+
+    grid = new Uint8Array(COLS * ROWS);
+    next = new Uint8Array(COLS * ROWS);
+
+    // Copy cells (top-left aligned)
+    const copyC = Math.min(oldCols, COLS);
+    const copyR = Math.min(oldRows, ROWS);
+    for (let y = 0; y < copyR; y++) {
+      for (let x = 0; x < copyC; x++) {
+        grid[y * COLS + x] = oldGrid[y * oldCols + x];
+      }
+    }
+
+    canvas.width  = COLS * CELL;
+    canvas.height = ROWS * CELL;
+    return true;
+  }
 
   // --- Init: random ---
   function randomize() {
@@ -240,9 +297,7 @@
     render();
   }
 
-  function idx(x, y) {
-    return y * COLS + x;
-  }
+  function idx(x, y) { return y * COLS + x; }
 
   // --- Neighbour count with toroidal wrap ---
   function neighbours(x, y) {
@@ -250,9 +305,7 @@
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
-        const nx = (x + dx + COLS) % COLS;
-        const ny = (y + dy + ROWS) % ROWS;
-        n += grid[idx(nx, ny)];
+        n += grid[((y + dy + ROWS) % ROWS) * COLS + ((x + dx + COLS) % COLS)];
       }
     }
     return n;
@@ -266,46 +319,32 @@
         const i = idx(x, y);
         const n = neighbours(x, y);
         const alive = grid[i];
-        if (alive) {
-          next[i] = (n === 2 || n === 3) ? 1 : 0;
-        } else {
-          next[i] = (n === 3) ? 1 : 0;
-        }
+        next[i] = alive ? ((n === 2 || n === 3) ? 1 : 0) : (n === 3 ? 1 : 0);
         pop += next[i];
       }
     }
-    // swap buffers
-    const tmp = grid;
-    grid = next;
-    next = tmp;
+    const tmp = grid; grid = next; next = tmp;
     generation++;
     return pop;
   }
 
   // --- Render ---
   function render() {
-    // Fill background
     ctx.fillStyle = DEAD_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw grid lines
+    // Grid lines
     ctx.fillStyle = GRID_COLOR;
-    for (let x = 0; x < COLS; x++) {
-      ctx.fillRect(x * CELL, 0, 1, canvas.height);
-    }
-    for (let y = 0; y < ROWS; y++) {
-      ctx.fillRect(0, y * CELL, canvas.width, 1);
-    }
+    for (let x = 0; x < COLS; x++) ctx.fillRect(x * CELL, 0, 1, canvas.height);
+    for (let y = 0; y < ROWS; y++) ctx.fillRect(0, y * CELL, canvas.width, 1);
 
-    // Draw cells
+    // Cells
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
-        if (grid[idx(x, y)]) {
-          // Phosphor glow: bright center, slightly dimmer fill
-          ctx.fillStyle = ALIVE_COLOR;
-          ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
-
-          // inner highlight
+        if (!grid[idx(x, y)]) continue;
+        ctx.fillStyle = ALIVE_COLOR;
+        ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+        if (CELL >= 8) {
           ctx.fillStyle = 'rgba(180,255,180,0.5)';
           ctx.fillRect(x * CELL + 2, y * CELL + 2, CELL - 6, CELL - 6);
         }
@@ -326,13 +365,11 @@
 
   // --- Main loop ---
   function loop(ts) {
-    animId = requestAnimationFrame(loop);
+    requestAnimationFrame(loop);
     if (!running) return;
-
-    const interval = frameInterval / speedMult;
+    const interval = FRAME_MS / speedMult;
     if (ts - lastStep >= interval) {
       lastStep = ts;
-      // run multiple steps for higher speeds (smoother than tiny intervals)
       const pop = step();
       render();
       document.getElementById('gen-count').textContent = generation;
@@ -344,92 +381,73 @@
   function togglePlay() {
     running = !running;
     const btn = document.getElementById('btn-play');
-    if (running) {
-      btn.textContent = '❚❚ Pause';
-      btn.classList.add('active');
-    } else {
-      btn.textContent = '▶ Play';
-      btn.classList.remove('active');
-    }
+    btn.textContent = running ? '❚❚ Pause' : '▶ Play';
+    btn.classList.toggle('active', running);
   }
 
   function setSpeed(s) {
     speedMult = s;
     document.getElementById('speed-display').textContent = s + 'x';
-    // update speed buttons
     [1,2,4,8].forEach(n => {
-      const b = document.getElementById('spd-' + n);
-      if (n === s) b.classList.add('active');
-      else b.classList.remove('active');
+      document.getElementById('spd-' + n).classList.toggle('active', n === s);
     });
   }
 
-  // --- Mouse interaction ---
-  function cellFromEvent(e) {
+  // --- Pointer interaction (mouse + touch unified) ---
+  function cellFromPoint(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width  / rect.width;
     const scaleY = canvas.height / rect.height;
-    const x = Math.floor((e.clientX - rect.left) * scaleX / CELL);
-    const y = Math.floor((e.clientY - rect.top)  * scaleY / CELL);
+    const x = Math.floor((clientX - rect.left) * scaleX / CELL);
+    const y = Math.floor((clientY - rect.top)  * scaleY / CELL);
     if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return null;
     return { x, y };
   }
 
-  canvas.addEventListener('mousedown', e => {
-    e.preventDefault();
-    isMouseDown = true;
-    const c = cellFromEvent(e);
-    if (!c) return;
-    drawMode = !grid[idx(c.x, c.y)]; // toggle: if dead→draw alive, if alive→erase
-    grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
-    updateStats();
-    render();
-  });
-
-  canvas.addEventListener('mousemove', e => {
-    if (!isMouseDown) return;
-    const c = cellFromEvent(e);
-    if (!c) return;
-    grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
-    updateStats();
-    render();
-  });
-
-  window.addEventListener('mouseup', () => { isMouseDown = false; });
-
-  // Touch support
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    isMouseDown = true;
-    const t = e.touches[0];
-    const c = cellFromEvent(t);
+  function pointerDown(clientX, clientY) {
+    isPointerDown = true;
+    const c = cellFromPoint(clientX, clientY);
     if (!c) return;
     drawMode = !grid[idx(c.x, c.y)];
     grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
     updateStats();
     render();
-  }, { passive: false });
+  }
 
-  canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const t = e.touches[0];
-    const c = cellFromEvent(t);
+  function pointerMove(clientX, clientY) {
+    if (!isPointerDown) return;
+    const c = cellFromPoint(clientX, clientY);
     if (!c) return;
     grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
     updateStats();
     render();
-  }, { passive: false });
+  }
 
-  canvas.addEventListener('touchend', () => { isMouseDown = false; });
+  canvas.addEventListener('mousedown',  e => { e.preventDefault(); pointerDown(e.clientX, e.clientY); });
+  canvas.addEventListener('mousemove',  e => pointerMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup',    () => { isPointerDown = false; });
 
-  // Spacebar = play/pause
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); pointerDown(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); pointerMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+  canvas.addEventListener('touchend',   () => { isPointerDown = false; });
+
   document.addEventListener('keydown', e => {
     if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
   });
 
+  // --- Responsive resize ---
+  const resizeObserver = new ResizeObserver(() => {
+    if (computeLayout()) render();
+  });
+  resizeObserver.observe(wrapper);
+
   // --- Kick off ---
-  randomize();
-  requestAnimationFrame(loop);
+  // Initial layout computed via ResizeObserver first tick, then randomize
+  requestAnimationFrame(() => {
+    computeLayout();
+    randomize();
+    requestAnimationFrame(loop);
+  });
 </script>
 </body>
 </html>

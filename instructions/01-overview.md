@@ -18,7 +18,11 @@ html-games/
 │   ├── 03-game-format.md      # Game file format specification
 │   ├── 04-testing-workflow.md # How to test games before delivery
 │   └── 05-preview-links.md   # How to generate preview links
-└── *.html                     # Game files (e.g., snake.html, tetris.html)
+└── games/                     # All games live here
+    └── game-name/             # One subfolder per game
+        ├── game-name.html     # The game (single self-contained HTML file)
+        ├── screenshot.png     # Screenshot for the README
+        └── README.md          # Description, preview link, screenshot
 ```
 
 ## What Happens on Session Start
