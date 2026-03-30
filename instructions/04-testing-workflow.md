@@ -19,16 +19,16 @@ If either is down, run: `./.claude/hooks/setup-environment.sh`
 
 ### 1. Create the game file
 
-Write the HTML file in the repo root:
+Write the HTML file in the game's subfolder:
 ```
-/home/user/html-games/game-name.html
+/home/user/html-games/games/game-name/game-name.html
 ```
 
 ### 2. Open it with Playwright MCP
 
 Use `browser_navigate` to open the game via the local HTTP server:
 ```
-http://localhost:8080/game-name.html
+http://localhost:8080/games/game-name/game-name.html
 ```
 
 **Important:** Use `http://localhost:8080/` URLs, not `file://` paths.
@@ -66,6 +66,11 @@ document.querySelectorAll('canvas').length  // verify canvas exists
 ### 7. Take a final screenshot
 
 Capture the game in an active state to confirm everything works.
+
+Save it as `screenshot.png` in the game's folder — it will be used in the README:
+```
+/home/user/html-games/games/game-name/screenshot.png
+```
 
 ## Common Issues
 

@@ -54,29 +54,33 @@ Detailed documentation lives in `instructions/`. Key files:
 
 ## Game Format (Quick Reference)
 
-- **One file per game:** `game-name.html` (lowercase, hyphenated)
+- **One folder per game:** `games/game-name/` containing `game-name.html` + `README.md` + `screenshot.png`
 - **Everything inline:** CSS in `<style>`, JS in `<script>`, no external deps
 - **Vanilla only:** No libraries, no CDNs, no frameworks
 - **Self-contained:** Must work when opened directly in a browser
+- **Responsive:** Must work on both desktop and mobile
 
 ## Workflow
 
-1. **Build** the game as a single HTML file in the repo root
+1. **Build** the game as `games/game-name/game-name.html`
 2. **Test** it yourself using the MCP servers:
-   - Navigate to `http://localhost:8080/game-name.html` via Playwright MCP
-   - Take a screenshot to verify rendering
+   - Navigate to `http://localhost:8080/games/game-name/game-name.html` via Playwright MCP
+   - Take a screenshot to verify rendering → save as `games/game-name/screenshot.png`
    - Interact with the game to verify mechanics
    - Check console for JS errors
-3. **Commit and push** to your working branch
-4. **Deliver** a preview link to the user:
+3. **Write** `games/game-name/README.md` with title, screenshot, main-branch preview link, description
+4. **Commit and push** to your working branch
+5. **Deliver** the feature-branch preview link to the user:
    ```
-   https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/{BRANCH}/game-name.html
+   https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/{BRANCH}/games/game-name/game-name.html
    ```
 
 ## MCP Tools Quick Reference
 
+**If any MCP tool fails with ECONNREFUSED, run `./.claude/hooks/setup-environment.sh` then retry.**
+
 **Playwright MCP** (primary — use for most testing):
-- `browser_navigate` — Open a game (`http://localhost:8080/game-name.html`)
+- `browser_navigate` — Open a game (`http://localhost:8080/games/game-name/game-name.html`)
 - `browser_take_screenshot` — Visual verification
 - `browser_snapshot` — Get accessibility tree (element refs for clicking)
 - `browser_click` — Click elements (use `ref` from snapshot)
