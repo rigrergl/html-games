@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Conway's Game of Life</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    background: #000;
+    color: #33ff33;
+    font-family: "Courier New", Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+    user-select: none;
+  }
+
+  /* CRT phosphor glow effect */
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  h1 {
+    font-size: 18px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #33ff33;
+    text-shadow: 0 0 8px #33ff33, 0 0 16px #33ff33;
+    margin-bottom: 4px;
+    font-weight: normal;
+  }
+
+  .subtitle {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #1a8c1a;
+    margin-bottom: 14px;
+    text-shadow: 0 0 6px #1a8c1a;
+  }
+
+  #canvas-wrapper {
+    position: relative;
+    border: 1px solid #1a8c1a;
+    box-shadow: 0 0 12px rgba(51,255,51,0.25), inset 0 0 8px rgba(0,0,0,0.5);
+    cursor: crosshair;
+    line-height: 0;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #1a5c1a;
+    padding: 5px 10px;
+    background: #000;
+  }
+
+  .ctrl-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #1a8c1a;
+    text-transform: uppercase;
+  }
+
+  button {
+    background: #000;
+    color: #33ff33;
+    border: 1px solid #33ff33;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    text-shadow: 0 0 6px #33ff33;
+    box-shadow: 0 0 4px rgba(51,255,51,0.2);
+    transition: background 0.1s, color 0.1s;
+  }
+
+  button:hover {
+    background: #33ff33;
+    color: #000;
+    text-shadow: none;
+  }
+
+  button:active {
+    background: #1aaa1a;
+    color: #000;
+  }
+
+  button.active {
+    background: #33ff33;
+    color: #000;
+    text-shadow: none;
+  }
+
+  .speed-btn {
+    min-width: 32px;
+    text-align: center;
+  }
+
+  .stats {
+    display: flex;
+    gap: 24px;
+    margin-top: 10px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #1a8c1a;
+  }
+
+  .stat-val {
+    color: #33ff33;
+    text-shadow: 0 0 6px #33ff33;
+  }
+
+  .hint {
+    margin-top: 10px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #0d5c0d;
+    text-align: center;
+  }
+
+  .divider {
+    color: #1a5c1a;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+<h1>Conway's Game of Life</h1>
+<div class="subtitle">J.H. Conway &mdash; 1970</div>
+
+<div id="canvas-wrapper">
+  <canvas id="grid"></canvas>
+</div>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label">Control</span>
+    <button id="btn-play" class="active" onclick="togglePlay()">&#9646;&#9646; Pause</button>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Speed</span>
+    <button class="speed-btn active" id="spd-1" onclick="setSpeed(1)">1x</button>
+    <button class="speed-btn" id="spd-2" onclick="setSpeed(2)">2x</button>
+    <button class="speed-btn" id="spd-4" onclick="setSpeed(4)">4x</button>
+    <button class="speed-btn" id="spd-8" onclick="setSpeed(8)">8x</button>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Board</span>
+    <button onclick="randomize()">Random</button>
+    <button onclick="clearBoard()">Clear</button>
+  </div>
+</div>
+
+<div class="stats">
+  <span>GEN: <span class="stat-val" id="gen-count">0</span></span>
+  <span>POP: <span class="stat-val" id="pop-count">0</span></span>
+  <span>SPEED: <span class="stat-val" id="speed-display">1x</span></span>
+</div>
+
+<div class="hint">CLICK OR DRAG TO TOGGLE CELLS &nbsp;|&nbsp; PLAY/PAUSE: SPACE</div>
+
+<script>
+  // --- Config ---
+  const CELL = 11;          // px per cell (classic chunky look)
+  const COLS = 70;
+  const ROWS = 50;
+  const DEAD_COLOR  = '#000000';
+  const ALIVE_COLOR = '#33ff33';
+  const GRID_COLOR  = '#0a2a0a';
+
+  // --- State ---
+  let grid = new Uint8Array(COLS * ROWS);
+  let next = new Uint8Array(COLS * ROWS);
+  let running = true;
+  let generation = 0;
+  let speedMult = 1;
+  let frameInterval = 120; // ms at 1x
+  let lastStep = 0;
+  let animId = null;
+
+  // Drawing state
+  let isMouseDown = false;
+  let drawMode = null; // true = drawing alive, false = drawing dead
+
+  // --- Canvas setup ---
+  const canvas = document.getElementById('grid');
+  const ctx = canvas.getContext('2d');
+  canvas.width  = COLS * CELL;
+  canvas.height = ROWS * CELL;
+
+  // --- Init: random ---
+  function randomize() {
+    for (let i = 0; i < grid.length; i++) {
+      grid[i] = Math.random() < 0.3 ? 1 : 0;
+    }
+    generation = 0;
+    updateStats();
+    render();
+  }
+
+  function clearBoard() {
+    grid.fill(0);
+    generation = 0;
+    updateStats();
+    render();
+  }
+
+  function idx(x, y) {
+    return y * COLS + x;
+  }
+
+  // --- Neighbour count with toroidal wrap ---
+  function neighbours(x, y) {
+    let n = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = (x + dx + COLS) % COLS;
+        const ny = (y + dy + ROWS) % ROWS;
+        n += grid[idx(nx, ny)];
+      }
+    }
+    return n;
+  }
+
+  // --- Step ---
+  function step() {
+    let pop = 0;
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const i = idx(x, y);
+        const n = neighbours(x, y);
+        const alive = grid[i];
+        if (alive) {
+          next[i] = (n === 2 || n === 3) ? 1 : 0;
+        } else {
+          next[i] = (n === 3) ? 1 : 0;
+        }
+        pop += next[i];
+      }
+    }
+    // swap buffers
+    const tmp = grid;
+    grid = next;
+    next = tmp;
+    generation++;
+    return pop;
+  }
+
+  // --- Render ---
+  function render() {
+    // Fill background
+    ctx.fillStyle = DEAD_COLOR;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw grid lines
+    ctx.fillStyle = GRID_COLOR;
+    for (let x = 0; x < COLS; x++) {
+      ctx.fillRect(x * CELL, 0, 1, canvas.height);
+    }
+    for (let y = 0; y < ROWS; y++) {
+      ctx.fillRect(0, y * CELL, canvas.width, 1);
+    }
+
+    // Draw cells
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        if (grid[idx(x, y)]) {
+          // Phosphor glow: bright center, slightly dimmer fill
+          ctx.fillStyle = ALIVE_COLOR;
+          ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+
+          // inner highlight
+          ctx.fillStyle = 'rgba(180,255,180,0.5)';
+          ctx.fillRect(x * CELL + 2, y * CELL + 2, CELL - 6, CELL - 6);
+        }
+      }
+    }
+  }
+
+  function countPop() {
+    let p = 0;
+    for (let i = 0; i < grid.length; i++) p += grid[i];
+    return p;
+  }
+
+  function updateStats() {
+    document.getElementById('gen-count').textContent = generation;
+    document.getElementById('pop-count').textContent = countPop();
+  }
+
+  // --- Main loop ---
+  function loop(ts) {
+    animId = requestAnimationFrame(loop);
+    if (!running) return;
+
+    const interval = frameInterval / speedMult;
+    if (ts - lastStep >= interval) {
+      lastStep = ts;
+      // run multiple steps for higher speeds (smoother than tiny intervals)
+      const pop = step();
+      render();
+      document.getElementById('gen-count').textContent = generation;
+      document.getElementById('pop-count').textContent = pop;
+    }
+  }
+
+  // --- Controls ---
+  function togglePlay() {
+    running = !running;
+    const btn = document.getElementById('btn-play');
+    if (running) {
+      btn.textContent = '❚❚ Pause';
+      btn.classList.add('active');
+    } else {
+      btn.textContent = '▶ Play';
+      btn.classList.remove('active');
+    }
+  }
+
+  function setSpeed(s) {
+    speedMult = s;
+    document.getElementById('speed-display').textContent = s + 'x';
+    // update speed buttons
+    [1,2,4,8].forEach(n => {
+      const b = document.getElementById('spd-' + n);
+      if (n === s) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
+
+  // --- Mouse interaction ---
+  function cellFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width  / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = Math.floor((e.clientX - rect.left) * scaleX / CELL);
+    const y = Math.floor((e.clientY - rect.top)  * scaleY / CELL);
+    if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return null;
+    return { x, y };
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    isMouseDown = true;
+    const c = cellFromEvent(e);
+    if (!c) return;
+    drawMode = !grid[idx(c.x, c.y)]; // toggle: if dead→draw alive, if alive→erase
+    grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
+    updateStats();
+    render();
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if (!isMouseDown) return;
+    const c = cellFromEvent(e);
+    if (!c) return;
+    grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
+    updateStats();
+    render();
+  });
+
+  window.addEventListener('mouseup', () => { isMouseDown = false; });
+
+  // Touch support
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    isMouseDown = true;
+    const t = e.touches[0];
+    const c = cellFromEvent(t);
+    if (!c) return;
+    drawMode = !grid[idx(c.x, c.y)];
+    grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
+    updateStats();
+    render();
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    const c = cellFromEvent(t);
+    if (!c) return;
+    grid[idx(c.x, c.y)] = drawMode ? 1 : 0;
+    updateStats();
+    render();
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => { isMouseDown = false; });
+
+  // Spacebar = play/pause
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  });
+
+  // --- Kick off ---
+  randomize();
+  requestAnimationFrame(loop);
+</script>
+</body>
+</html>
