@@ -63,9 +63,34 @@ Or use `browser_evaluate` to run JS in the page:
 document.querySelectorAll('canvas').length  // verify canvas exists
 ```
 
-### 7. Take a final screenshot
+### 7. Test responsiveness on multiple viewports
 
-Capture the game in an active state to confirm everything works.
+Games **MUST** be responsive. Use `browser_resize` (Playwright MCP) or `mcp__chrome-devtools__emulate` to test at multiple screen sizes:
+
+```
+Mobile portrait:  375 × 667   (iPhone SE)
+Mobile landscape: 667 × 375
+Tablet:           768 × 1024
+Desktop:          1280 × 800
+```
+
+For each viewport:
+- Take a screenshot to verify layout doesn't break
+- Verify on-screen touch controls appear and are tappable on mobile sizes
+- Verify text/UI elements don't overflow or get clipped
+- Verify the game canvas/play area scales correctly
+
+Example using Playwright MCP:
+```
+browser_resize({ width: 375, height: 667 })   # mobile
+browser_take_screenshot()
+browser_resize({ width: 1280, height: 800 })  # desktop
+browser_take_screenshot()
+```
+
+### 8. Take a final screenshot
+
+Capture the game in an active state (desktop viewport) to confirm everything works.
 
 Save it as `screenshot.png` in the game's folder — it will be used in the README:
 ```
