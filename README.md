@@ -14,13 +14,17 @@ See `CLAUDE.md` for full agent instructions and `instructions/` for detailed doc
 
 ### Running with Full Permissions
 
-This project is intended to be used inside a **disposable VM environment** (e.g., Claude Code on the web). To allow the agent to work without constant permission prompts:
+> **WARNING: This project is designed to run inside a disposable VM environment** (e.g., Claude Code on the web). It is **not safe** to run on a personal machine or any environment with sensitive data.
+
+`.claude/settings.json` in this repo already sets `"defaultMode": "bypassPermissions"`, which means Claude Code will run **without any permission prompts** by default when you open this project. This was done intentionally so the agent can build, test, and deploy games autonomously in an isolated sandbox.
+
+You can also launch explicitly with:
 
 ```bash
 claude --dangerously-skip-permissions
 ```
 
-> **DANGER: This flag disables ALL permission checks and safety prompts.** Claude will be able to execute arbitrary shell commands, modify/delete any file, install packages, and make network requests — all without asking for confirmation.
+> **DANGER: Bypass permissions disables ALL permission checks and safety prompts.** Claude will be able to execute arbitrary shell commands, modify/delete any file, install packages, and make network requests — all without asking for confirmation.
 >
 > **ONLY use this in isolated, disposable environments** (cloud VMs, containers, sandboxes) where:
 > - There are no personal files, credentials, or secrets

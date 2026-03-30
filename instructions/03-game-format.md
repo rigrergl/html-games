@@ -57,8 +57,9 @@ games/conways-game-of-life/conways-game-of-life.html
 3. **Inline scripts** — All JS in a `<script>` tag before `</body>`
 4. **Vanilla only** — No external libraries, CDNs, or frameworks
 5. **Self-contained** — Must work when opened directly in a browser (`file://` protocol)
-6. **Responsive** — Must work on both desktop and mobile screen sizes
+6. **Responsive** — **MUST** work on both desktop and mobile screen sizes. Games can be played on phones, tablets, laptops, and desktops. Use relative/percentage-based sizing, CSS flexbox/grid, `vw`/`vh` units, and touch-friendly controls (touch events alongside keyboard/mouse). Never assume a fixed viewport size.
 7. **Viewport meta tag** — Always include `<meta name="viewport" ...>` for mobile
+8. **Touch controls** — For games using keyboard controls, also provide on-screen touch buttons or swipe gestures for mobile users
 
 ## README.md Format
 
