@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Song Visualizer — {SONG_TITLE}</title>
+  <style>
+    /* ---------- Reset & Layout ---------- */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #0a0a0a;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: sans-serif;
+    }
+
+    /* Full-viewport canvas behind everything */
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #0a0a0a;
+    }
+
+    /* ---------- Play overlay ----------
+       Browsers block audio until a user gesture. This overlay sits on top
+       of the canvas and is removed the moment the user clicks Play.
+    */
+    #overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 10;
+    }
+
+    #overlay h1 {
+      color: #ffffff;
+      font-size: clamp(1.2rem, 4vw, 2.5rem);
+      margin-bottom: 0.3em;
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+
+    #overlay p {
+      color: #aaaaaa;
+      font-size: clamp(0.8rem, 2vw, 1.1rem);
+      margin-bottom: 2em;
+      text-align: center;
+    }
+
+    #playBtn {
+      padding: 0.8em 2.5em;
+      font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    #playBtn:hover {
+      background: #dddddd;
+      transform: scale(1.04);
+    }
+
+    #playBtn:active {
+      transform: scale(0.97);
+    }
+
+    /* Hidden utility */
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Play overlay (removed on first click) -->
+  <div id="overlay">
+    <h1>{SONG_TITLE}</h1>
+    <p>{COMPOSER}</p>
+    <button id="playBtn">&#9654; Play</button>
+  </div>
+
+  <!-- Full-viewport canvas for the visualizer -->
+  <canvas id="canvas"></canvas>
+
+  <!--
+    Vendored libraries loaded from relative paths.
+    When this file lives at songs/<slug>/index.html, these paths
+    resolve to games/song-visualizer/lib/.
+  -->
+  <script src="../../lib/Tone.js"></script>
+  <script src="../../lib/Midi.js"></script>
+
+  <script>
+    // =========================================================
+    // CONFIGURATION
+    // Change MIDI_PATH to the filename of the MIDI file sitting
+    // next to this HTML (e.g. "song.mid").
+    // =========================================================
+    const MIDI_PATH = './song.mid';
+
+    // =========================================================
+    // CANVAS SETUP
+    // =========================================================
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // =========================================================
+    // ACTIVE NOTE TRACKING
+    // activeNotes is incremented on each note-on and decremented
+    // on each note-off, so drawFrame() always knows how many
+    // notes are currently sounding.
+    //
+    // For per-song visualizations you will likely want richer
+    // data (pitch, velocity, track). Extend this object as needed.
+    // =========================================================
+    let activeNotes = 0;   // count of currently-sounding notes
+
+    // =========================================================
+    // DRAW FRAME
+    // Called on every animation frame while playback is running.
+    //
+    // Parameters:
+    //   ctx         — the 2D canvas context
+    //   time        — Tone.Transport.seconds (playback position)
+    //   activeNotes — count of currently-sounding notes
+    //
+    // TODO: replace this placeholder with the per-song visualization.
+    //       This stub draws a pulsing circle whose radius is
+    //       proportional to activeNotes, just to prove the plumbing
+    //       is working end-to-end.
+    // =========================================================
+    function drawFrame(ctx, time, activeNotes) {
+      const W = canvas.width;
+      const H = canvas.height;
+
+      // Clear with a dark background
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, W, H);
+
+      // Pulsing circle — radius grows with note count
+      const baseRadius  = Math.min(W, H) * 0.08;
+      const noteRadius  = activeNotes * 12;
+      const totalRadius = baseRadius + noteRadius;
+
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, totalRadius, 0, Math.PI * 2);
+      ctx.fillStyle = `hsl(${(time * 30) % 360}, 70%, 60%)`;
+      ctx.fill();
+    }
+
+    // =========================================================
+    // RENDER LOOP
+    // =========================================================
+    let animFrameId = null;
+    let isPlaying   = false;
+
+    function startRenderLoop() {
+      function loop() {
+        if (!isPlaying) return;
+        drawFrame(ctx, Tone.Transport.seconds, activeNotes);
+        animFrameId = requestAnimationFrame(loop);
+      }
+      animFrameId = requestAnimationFrame(loop);
+    }
+
+    function stopRenderLoop() {
+      if (animFrameId !== null) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+    }
+
+    // =========================================================
+    // MIDI LOADING & SCHEDULING
+    // =========================================================
+    async function loadAndSchedule(midiPath) {
+      // Fetch the MIDI file as an ArrayBuffer
+      const response = await fetch(midiPath);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch MIDI: ${response.status} ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+
+      // Parse with @tonejs/midi
+      const midi = new Midi(arrayBuffer);
+
+      console.log(`MIDI loaded: ${midi.tracks.length} tracks, duration ${midi.duration.toFixed(2)}s`);
+
+      // Build a PolySynth.
+      // TODO (per-song): consider swapping or layering synths to match
+      // the character of the piece — e.g. use FMSynth for something
+      // harsher, or a softer oscillator type for something delicate.
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'triangle' },
+        envelope:   { attack: 0.02, decay: 0.1, sustain: 0.5, release: 0.8 },
+        volume:     -6,
+      }).toDestination();
+
+      // Schedule every note from every track
+      midi.tracks.forEach((track) => {
+        track.notes.forEach((note) => {
+          // note-on: trigger the synth and increment the active counter
+          Tone.Transport.schedule((time) => {
+            synth.triggerAttack(note.name, time, note.velocity);
+            activeNotes++;
+          }, note.time);
+
+          // note-off: release and decrement
+          Tone.Transport.schedule((time) => {
+            synth.triggerRelease(note.name, time);
+            activeNotes = Math.max(0, activeNotes - 1);
+          }, note.time + note.duration);
+        });
+      });
+
+      // Schedule a stop event at the end of the MIDI
+      const totalDuration = midi.duration;
+      Tone.Transport.schedule(() => {
+        stopPlayback();
+      }, totalDuration + 0.5);
+
+      return totalDuration;
+    }
+
+    // =========================================================
+    // PLAYBACK CONTROL
+    // =========================================================
+    function stopPlayback() {
+      isPlaying = false;
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
+      stopRenderLoop();
+      activeNotes = 0;
+
+      // Draw final frame (cleared canvas)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      console.log('Playback finished.');
+    }
+
+    // =========================================================
+    // PLAY BUTTON HANDLER
+    // This must be triggered by a real user gesture — browsers
+    // will block audio context creation otherwise.
+    // =========================================================
+    document.getElementById('playBtn').addEventListener('click', async () => {
+      // Hide the overlay immediately so the canvas is visible
+      document.getElementById('overlay').classList.add('hidden');
+
+      try {
+        // Start Tone.js audio context (requires user gesture)
+        await Tone.start();
+
+        // Clear any previous transport state
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+        activeNotes = 0;
+
+        await loadAndSchedule(MIDI_PATH);
+
+        // Start transport and render loop together
+        isPlaying = true;
+        Tone.Transport.start();
+        startRenderLoop();
+
+        console.log('Playback started. Transport state:', Tone.Transport.state);
+      } catch (err) {
+        console.error('Error starting playback:', err);
+        // Show a simple error message over the canvas
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff4444';
+        ctx.font = '1rem sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Error: ' + err.message, canvas.width / 2, canvas.height / 2);
+      }
+    });
+  </script>
+</body>
+</html>
