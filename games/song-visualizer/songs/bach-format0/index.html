@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Bach — Piano Roll</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #050508;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+
+    canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+    }
+
+    #overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(5, 5, 8, 0.93);
+      z-index: 10;
+    }
+
+    #overlay h1 {
+      color: #e8d5a3;
+      font-size: clamp(2rem, 7vw, 4rem);
+      font-weight: normal;
+      letter-spacing: 0.07em;
+      margin-bottom: 0.18em;
+      text-align: center;
+    }
+
+    #overlay .subtitle {
+      color: #7a6a4a;
+      font-size: clamp(0.7rem, 2.2vw, 0.95rem);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      margin-bottom: 3em;
+      text-align: center;
+    }
+
+    #playBtn {
+      padding: 0.9em 3.8em;
+      font-family: Georgia, serif;
+      font-size: clamp(0.8rem, 2.4vw, 1.05rem);
+      background: transparent;
+      color: #e8d5a3;
+      border: 1px solid rgba(232, 213, 163, 0.45);
+      border-radius: 1px;
+      cursor: pointer;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      transition: background 0.2s, border-color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    #playBtn:hover  { background: rgba(232,213,163,0.1); border-color: #e8d5a3; }
+    #playBtn:active { background: rgba(232,213,163,0.22); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div id="overlay">
+    <h1>Bach</h1>
+    <p class="subtitle">Johann Sebastian Bach</p>
+    <button id="playBtn">&#9654;&ensp;Play</button>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script src="../../lib/Tone.js"></script>
+  <script src="../../lib/Midi.js"></script>
+
+  <script>
+    const MIDI_PATH = './song.mid';
+
+    // ── Canvas ────────────────────────────────────────────────────
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // ── Piano key helpers ─────────────────────────────────────────
+    // MIDI pitch classes that are black keys
+    const BLACK_CLASS = new Set([1, 3, 6, 8, 10]);
+    const isBlack = m => BLACK_CLASS.has(m % 12);
+
+    // Count white keys from midi a up to (not including) midi b
+    function countWhiteBetween(a, b) {
+      let n = 0;
+      for (let m = a; m < b; m++) if (!isBlack(m)) n++;
+      return n;
+    }
+
+    // ── Dynamic pitch range (set after MIDI loads) ────────────────
+    // We zoom the roll to only the pitch range actually used,
+    // with a small pad so notes don't sit at the very edge.
+    let rollLo = 48;   // will be updated on MIDI load
+    let rollHi = 84;
+    let rollWhite = 1; // total white keys in [rollLo, rollHi]
+
+    // Cached per-note X fractions (0..1) relative to rollLo..rollHi
+    const noteXCache = {};
+
+    function buildNoteXCache() {
+      noteXCache;  // clear old entries
+      for (const k of Object.keys(noteXCache)) delete noteXCache[k];
+
+      rollWhite = countWhiteBetween(rollLo, rollHi + 1);
+
+      let w = 0;
+      for (let m = rollLo; m <= rollHi; m++) {
+        if (isBlack(m)) {
+          // Black key center sits at (w − 0.05) / rollWhite
+          noteXCache[m] = (w - 0.05) / rollWhite;
+        } else {
+          noteXCache[m] = (w + 0.5) / rollWhite;
+          w++;
+        }
+      }
+    }
+
+    // ── Pitch → hue (amber low → violet high) ────────────────────
+    function pitchHue(m) {
+      const t = (m - rollLo) / Math.max(1, rollHi - rollLo);
+      return 38 + t * 242;   // 38° (amber) → 280° (violet)
+    }
+
+    // ── Note storage ──────────────────────────────────────────────
+    let notesData     = [];
+    let activeNotes   = 0;
+    let totalDuration = 0;
+
+    const LOOK_AHEAD = 4.5;   // seconds of future shown above the now-line
+
+    // ── Draw frame ────────────────────────────────────────────────
+    function drawFrame(ctx, now) {
+      const W = canvas.width;
+      const H = canvas.height;
+
+      const KEYS_H = Math.max(28, Math.min(H * 0.10, 52));
+      const ROLL_H = H - KEYS_H;
+
+      // Width of each white key in the zoomed range
+      const WKW = W / rollWhite;
+      const BKW = WKW * 0.60;
+
+      // Trailing ghost fade
+      ctx.fillStyle = 'rgba(5, 5, 8, 0.50)';
+      ctx.fillRect(0, 0, W, H);
+
+      // ── Build lit-key map ─────────────────────────────────────
+      const litKeys = new Map();   // midi → velocity
+
+      // ── Falling note bars ─────────────────────────────────────
+      for (let i = 0; i < notesData.length; i++) {
+        const n   = notesData[i];
+        const rel = n.time - now;   // + = future, – = past
+
+        if (rel >  LOOK_AHEAD + 0.1)    continue;
+        if (rel < -(n.duration + 0.4))  continue;
+
+        const active = rel <= 0 && rel > -n.duration;
+        if (active) litKeys.set(n.pitch, n.velocity);
+
+        // Y mapping:  rel == LOOK_AHEAD → y = 0 (top)
+        //             rel == 0          → y = ROLL_H (keyboard edge)
+        const yBot = ROLL_H * (1 - rel / LOOK_AHEAD);
+        const barH = Math.max(3, (n.duration / LOOK_AHEAD) * ROLL_H);
+        const yTop = yBot - barH;
+
+        const drawY1 = Math.max(0, yTop);
+        const drawY2 = Math.min(ROLL_H, yBot);
+        if (drawY2 <= drawY1) continue;
+
+        const pitch = Math.max(rollLo, Math.min(rollHi, n.pitch));
+        const xFrac = noteXCache[pitch] !== undefined ? noteXCache[pitch] : 0.5;
+        const cx    = xFrac * W;
+        const nw    = isBlack(pitch) ? BKW * 0.82 : WKW * 0.80;
+        const hue   = pitchHue(pitch);
+        const lum   = 30 + n.velocity * 35;
+        const sat   = 58 + n.velocity * 27;
+
+        if (active) {
+          ctx.shadowColor = `hsl(${hue},${sat}%,${lum + 20}%)`;
+          ctx.shadowBlur  = 18;
+        }
+
+        ctx.fillStyle = `hsl(${hue},${sat}%,${lum}%)`;
+        ctx.fillRect(cx - nw * 0.5, drawY1, nw, drawY2 - drawY1);
+
+        // Fade-in at top edge of upcoming notes
+        if (rel > 0 && drawY1 < 24) {
+          const fadeLen = Math.min(drawY2 - drawY1, 24);
+          const g = ctx.createLinearGradient(0, drawY1, 0, drawY1 + fadeLen);
+          g.addColorStop(0, 'rgba(5,5,8,0.95)');
+          g.addColorStop(1, 'rgba(5,5,8,0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(cx - nw * 0.5, drawY1, nw, fadeLen);
+        }
+
+        ctx.shadowBlur = 0;
+      }
+
+      // ── "Now" hairline ────────────────────────────────────────
+      ctx.fillStyle = 'rgba(232,213,163,0.20)';
+      ctx.fillRect(0, ROLL_H - 1, W, 1);
+
+      // ── Piano keyboard strip ──────────────────────────────────
+      ctx.fillStyle = '#0c0c13';
+      ctx.fillRect(0, ROLL_H, W, KEYS_H);
+
+      // White keys
+      let wi = 0;
+      for (let m = rollLo; m <= rollHi; m++) {
+        if (isBlack(m)) continue;
+        const kx  = wi * WKW;
+        const lit = litKeys.has(m);
+        if (lit) {
+          const hue = pitchHue(m);
+          ctx.shadowColor = `hsl(${hue},80%,65%)`;
+          ctx.shadowBlur  = 12;
+          ctx.fillStyle   = `hsl(${hue},75%,60%)`;
+        } else {
+          ctx.fillStyle = '#20202e';
+        }
+        ctx.fillRect(kx + 0.5, ROLL_H + 1, WKW - 1, KEYS_H - 2);
+        ctx.shadowBlur = 0;
+        wi++;
+      }
+
+      // Black keys (on top)
+      wi = 0;
+      for (let m = rollLo; m <= rollHi; m++) {
+        if (!isBlack(m)) { wi++; continue; }
+        const kx  = (wi - 1) * WKW + WKW * 0.65;
+        const lit = litKeys.has(m);
+        if (lit) {
+          const hue = pitchHue(m);
+          ctx.shadowColor = `hsl(${hue},80%,55%)`;
+          ctx.shadowBlur  = 8;
+          ctx.fillStyle   = `hsl(${hue},75%,50%)`;
+        } else {
+          ctx.fillStyle = '#080810';
+        }
+        ctx.fillRect(kx, ROLL_H + 1, BKW, KEYS_H * 0.62);
+        ctx.shadowBlur = 0;
+      }
+
+      // ── Progress bar (2px at very top) ───────────────────────
+      if (totalDuration > 0) {
+        const pct = Math.min(1, now / totalDuration);
+        ctx.fillStyle = 'rgba(232,213,163,0.07)';
+        ctx.fillRect(0, 0, W, 2);
+        ctx.fillStyle = 'rgba(232,213,163,0.45)';
+        ctx.fillRect(0, 0, pct * W, 2);
+      }
+    }
+
+    // ── Render loop ───────────────────────────────────────────────
+    let animId    = null;
+    let isPlaying = false;
+
+    function startLoop() {
+      (function loop() {
+        if (!isPlaying) return;
+        drawFrame(ctx, Tone.Transport.seconds);
+        animId = requestAnimationFrame(loop);
+      })();
+    }
+
+    function stopLoop() {
+      if (animId !== null) { cancelAnimationFrame(animId); animId = null; }
+    }
+
+    // ── MIDI loading & scheduling ─────────────────────────────────
+    async function loadAndSchedule(path) {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`HTTP ${res.status} — could not load MIDI`);
+
+      const midi = new Midi(await res.arrayBuffer());
+      console.log(`Loaded: ${midi.tracks.length} track(s), ${midi.duration.toFixed(2)} s`);
+
+      totalDuration = midi.duration;
+      notesData     = [];
+
+      // First pass: collect all notes and find actual pitch range
+      let pMin = 127, pMax = 0;
+      midi.tracks.forEach(track => {
+        track.notes.forEach(note => {
+          if (note.midi < pMin) pMin = note.midi;
+          if (note.midi > pMax) pMax = note.midi;
+          notesData.push({
+            pitch:    note.midi,
+            name:     note.name,
+            time:     note.time,
+            duration: note.duration,
+            velocity: note.velocity,
+          });
+        });
+      });
+
+      // Pad by 2 semi-tones each side so no note hugs the edge
+      rollLo = Math.max(0,   pMin - 2);
+      rollHi = Math.min(127, pMax + 2);
+
+      // Expand to always include a complete octave boundary for clean look
+      // (snap rollLo down to the nearest C and rollHi up to the nearest B)
+      rollLo = rollLo - (rollLo % 12 === 0 ? 0 : rollLo % 12);
+      rollHi = rollHi + (11 - rollHi % 12);
+      rollLo = Math.max(0,   rollLo);
+      rollHi = Math.min(127, rollHi);
+
+      buildNoteXCache();
+      console.log(`Pitch range: ${rollLo}–${rollHi}  (${rollWhite} white keys)`);
+
+      // Soft piano synth — sine + short release, harpsichord-like articulation
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'sine' },
+        envelope:   { attack: 0.004, decay: 0.09, sustain: 0.28, release: 0.55 },
+        volume:     -7,
+      }).toDestination();
+
+      // Second pass: schedule every note
+      notesData.forEach(n => {
+        Tone.Transport.schedule(t => {
+          synth.triggerAttack(n.name, t, n.velocity);
+          activeNotes++;
+        }, n.time);
+
+        Tone.Transport.schedule(t => {
+          synth.triggerRelease(n.name, t);
+          activeNotes = Math.max(0, activeNotes - 1);
+        }, n.time + n.duration);
+      });
+
+      Tone.Transport.schedule(() => finishPlayback(), totalDuration + 0.5);
+    }
+
+    // ── Stop / Finish ─────────────────────────────────────────────
+    function finishPlayback() {
+      isPlaying = false;
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
+      stopLoop();
+      activeNotes = 0;
+
+      ctx.fillStyle = '#050508';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      document.getElementById('playBtn').textContent = '\u21BA  Play again';
+      document.getElementById('overlay').classList.remove('hidden');
+      console.log('Playback finished.');
+    }
+
+    // ── Play button ───────────────────────────────────────────────
+    document.getElementById('playBtn').addEventListener('click', async () => {
+      document.getElementById('overlay').classList.add('hidden');
+
+      try {
+        await Tone.start();
+
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+        activeNotes   = 0;
+        notesData     = [];
+        totalDuration = 0;
+
+        await loadAndSchedule(MIDI_PATH);
+
+        isPlaying = true;
+        Tone.Transport.start();
+        startLoop();
+
+        console.log('Transport:', Tone.Transport.state, '| AudioCtx:', Tone.context.state);
+      } catch (err) {
+        console.error('Playback error:', err);
+        ctx.fillStyle = '#050508';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff6666';
+        ctx.font      = `${Math.max(14, canvas.width * 0.03)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('Error: ' + err.message, canvas.width / 2, canvas.height / 2);
+        document.getElementById('overlay').classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
