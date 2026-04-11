@@ -39,5 +39,4 @@ See [INSTRUCTIONS_FOR_NEW_SONG.md](./INSTRUCTIONS_FOR_NEW_SONG.md) for the full 
 
 ## Songs
 
-<!-- Append new entries here as songs are added, e.g.:
-- [Für Elise — Beethoven](songs/fur-elise/) -->
+- [Bach — Johann Sebastian Bach](songs/bach-format0/)
