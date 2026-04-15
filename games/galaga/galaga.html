@@ -2809,15 +2809,14 @@
 
     // ----- TOUCH CONTROLS -----
     let activeTouchId = null;
+    let lastTouchX = 0;
 
     touchZone.addEventListener('touchstart', function(e) {
         e.preventDefault();
         if (!gameRunning) return;
         const t = e.changedTouches[0];
         activeTouchId = t.identifier;
-        let newX = t.clientX;
-        newX = Math.max(player.w * 0.5, Math.min(W - player.w * 0.5, newX));
-        player.x = newX;
+        lastTouchX = t.clientX;
     }, { passive: false });
 
     touchZone.addEventListener('touchmove', function(e) {
@@ -2826,9 +2825,11 @@
         for (let i = 0; i < e.changedTouches.length; i++) {
             const t = e.changedTouches[i];
             if (t.identifier === activeTouchId) {
-                let newX = t.clientX;
+                let deltaX = t.clientX - lastTouchX;
+                let newX = player.x + deltaX;
                 newX = Math.max(player.w * 0.5, Math.min(W - player.w * 0.5, newX));
                 player.x = newX;
+                lastTouchX = t.clientX;
             }
         }
     }, { passive: false });
