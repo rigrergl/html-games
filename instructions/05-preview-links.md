@@ -37,7 +37,7 @@ https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/main/
 
 ## Important Notes
 
-- Always use the **current working branch name** for the chat link — check with `git branch --show-current`
+- Always use the **exact current working branch name** (including any auto-generated numbers or hashes) for the chat link — **do not guess the branch name**. Always verify it by running `git branch --show-current` before generating the link.
 - The file must be **pushed to the remote** before the preview link will work
 - `htmlpreview.github.io` renders the HTML with full CSS/JS support
 - Always push before sharing the link
