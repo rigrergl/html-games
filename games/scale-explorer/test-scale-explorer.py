@@ -1,6 +1,8 @@
+import os
 from playwright.sync_api import sync_playwright
 
 def run():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 720})
@@ -12,8 +14,9 @@ def run():
         page.wait_for_selector(".container")
 
         # Take a screenshot of the piano (default view)
-        page.screenshot(path="games/scale-explorer/screenshot.png")
-        print("Screenshot saved to games/scale-explorer/screenshot.png")
+        screenshot_path = os.path.join(script_dir, "screenshot.png")
+        page.screenshot(path=screenshot_path)
+        print(f"Screenshot saved to {screenshot_path}")
 
         # Test clicking a button
         page.click("#play-scale-btn")
