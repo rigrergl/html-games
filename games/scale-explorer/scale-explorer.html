@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Scale Explorer</title>
+<style>
+/* CSS Reset */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #121212; color: #eee; padding: 20px; text-align: center; }
+.container { max-width: 1000px; margin: 0 auto; }
+h1 { margin-bottom: 20px; font-weight: 800; color: #fff; }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-bottom: 20px; background: #1e1e1e; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+.control-group { display: flex; flex-direction: column; align-items: flex-start; }
+label { font-size: 0.85em; color: #aaa; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+select, button { padding: 10px 15px; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; font-size: 16px; cursor: pointer; transition: background 0.2s; }
+button { background: #4caf50; border-color: #4caf50; font-weight: bold; color: #fff; }
+button:hover { background: #45a049; }
+button:active { transform: scale(0.98); }
+select { outline: none; min-width: 120px; }
+select:focus { border-color: #4caf50; }
+
+/* Info Panel */
+.info-panel { background: #1e1e1e; border-radius: 8px; padding: 20px; margin-bottom: 20px; text-align: left; border-left: 4px solid #4caf50; }
+.info-panel h2 { margin-bottom: 10px; color: #fff; font-size: 1.5em; }
+.info-panel p { line-height: 1.5; color: #ccc; font-size: 1.1em; }
+
+/* Actions */
+.actions { margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;}
+.chord-btn { background: #2196f3; border-color: #2196f3; padding: 8px 12px; font-size: 14px; }
+.chord-btn:hover { background: #1976d2; }
+
+/* Instrument View */
+.instrument-container { margin-top: 30px; overflow-x: auto; padding-bottom: 10px; background: #1a1a1a; padding: 20px; border-radius: 8px; }
+
+/* Piano */
+.piano { display: flex; position: relative; justify-content: flex-start; height: 180px; min-width: 800px; padding: 10px 0; }
+.key { position: relative; border: 1px solid #000; border-radius: 0 0 5px 5px; cursor: pointer; user-select: none; transition: background 0.1s; }
+.key.white { background: #fff; width: 40px; height: 100%; z-index: 1; }
+.key.black { background: #111; width: 24px; height: 60%; margin-left: -12px; margin-right: -12px; z-index: 2; border: 1px solid #000; border-top: none; }
+.key.white:active, .key.white.playing { background: #ffeb3b !important; }
+.key.black:active, .key.black.playing { background: #fbc02d !important; }
+.key.in-scale { background: #c8e6c9; }
+.key.in-scale.black { background: #388e3c; }
+.key.root { background: #bbdefb !important; }
+.key.root.black { background: #1976d2 !important; }
+
+/* Guitar */
+.guitar { display: flex; flex-direction: column; background: #3e2723; border: 2px solid #1f1209; border-radius: 4px; padding: 10px 0; min-width: 900px; }
+.string { display: flex; position: relative; height: 35px; align-items: center; border-bottom: 1px solid #5d4037; }
+.string:last-child { border-bottom: none; }
+.string-line { position: absolute; width: 100%; height: 2px; background: linear-gradient(to bottom, #e0e0e0, #9e9e9e); box-shadow: 0 2px 3px rgba(0,0,0,0.5); z-index: 1; pointer-events: none; }
+.fret { flex: 1; border-right: 2px solid #bcaaa4; height: 100%; position: relative; display: flex; justify-content: center; align-items: center; z-index: 2; cursor: pointer; }
+.fret:first-child { border-right: 6px solid #fff; flex: 0.4; background: #2d1c15;} /* Nut */
+.note-marker { width: 24px; height: 24px; border-radius: 50%; background: transparent; display: flex; justify-content: center; align-items: center; font-size: 11px; font-weight: bold; color: transparent; z-index: 3; pointer-events: none; transition: all 0.1s; }
+.fret:hover .note-marker { background: rgba(255,255,255,0.15); color: #fff; }
+.note-marker.in-scale { background: #4caf50; color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+.note-marker.root { background: #2196f3; color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+.note-marker.playing { background: #ffeb3b !important; color: #000 !important; transform: scale(1.3); }
+
+/* Fret markers (dots) */
+.fret-number-row { display: flex; height: 25px; align-items: center; margin-top: 5px; }
+.fret-number { flex: 1; text-align: center; font-size: 13px; color: #aaa; font-weight: bold; }
+.fret-number:first-child { flex: 0.4; }
+
+/* Scrollbar styling for instrument view */
+.instrument-container::-webkit-scrollbar { height: 10px; }
+.instrument-container::-webkit-scrollbar-track { background: #111; border-radius: 5px; }
+.instrument-container::-webkit-scrollbar-thumb { background: #444; border-radius: 5px; }
+.instrument-container::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .controls { flex-direction: column; align-items: stretch; }
+  .control-group { align-items: stretch; }
+  select, button { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Scale Explorer</h1>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="instrument">Instrument</label>
+      <select id="instrument">
+        <option value="piano">Piano</option>
+        <option value="guitar">Guitar</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="root-note">Root Note</label>
+      <select id="root-note">
+        <!-- populated by JS -->
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="scale-type">Scale</label>
+      <select id="scale-type">
+        <!-- populated by JS -->
+      </select>
+    </div>
+  </div>
+
+  <div class="info-panel">
+    <h2 id="scale-name">C Major</h2>
+    <p id="scale-desc">Description</p>
+  </div>
+
+  <div class="actions">
+    <button id="play-scale-btn">▶ Play Scale</button>
+  </div>
+
+  <div class="actions" id="chords-container">
+    <!-- Diatonic chords dynamically added here -->
+  </div>
+
+  <div class="instrument-container" id="instrument-view">
+    <!-- Rendered by JS -->
+  </div>
+</div>
+
+<script>
+const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+const SCALES = {
+  "major": { name: "Major (Ionian)", intervals: [0, 2, 4, 5, 7, 9, 11], desc: "The most common scale in Western music. Sounds happy, uplifting, and resolved. The foundation of modern music theory." },
+  "minor": { name: "Natural Minor (Aeolian)", intervals: [0, 2, 3, 5, 7, 8, 10], desc: "A fundamental scale in Western music. Sounds sad, serious, emotional, or dramatic." },
+  "dorian": { name: "Dorian Mode", intervals: [0, 2, 3, 5, 7, 9, 10], desc: "Similar to minor but with a raised 6th. Common in jazz, blues, funk, and rock (e.g., Santana, Pink Floyd). Sounds melancholic but slightly brighter than natural minor." },
+  "phrygian": { name: "Phrygian Mode", intervals: [0, 1, 3, 5, 7, 8, 10], desc: "A minor scale with a flattened 2nd. Has a dark, exotic, Spanish, or Middle Eastern flavor. Very common in flamenco and metal music." },
+  "lydian": { name: "Lydian Mode", intervals: [0, 2, 4, 6, 7, 9, 11], desc: "Major scale with a raised 4th. Sounds dreamy, floating, ethereal, and unresolved. Used frequently in film scoring (e.g., John Williams)." },
+  "mixolydian": { name: "Mixolydian Mode", intervals: [0, 2, 4, 5, 7, 9, 10], desc: "Major scale with a flattened 7th. The essential scale for playing over dominant chords. Very common in blues, funk, rock, and Celtic music." },
+  "locrian": { name: "Locrian Mode", intervals: [0, 1, 3, 5, 6, 8, 10], desc: "The only mode with a diminished 5th. Sounds very unstable, tense, and dark. Rarely used as a main tonality but occurs in jazz over half-diminished chords." },
+  "major_pentatonic": { name: "Major Pentatonic", intervals: [0, 2, 4, 7, 9], desc: "A 5-note scale without half-steps. Very common in folk, country, rock, and pop music. Has an open, consonant sound." },
+  "minor_pentatonic": { name: "Minor Pentatonic", intervals: [0, 3, 5, 7, 10], desc: "A 5-note scale. The absolute foundation of rock, blues, and pop solos. Easy to play and almost always sounds good." },
+  "blues": { name: "Blues Scale", intervals: [0, 3, 5, 6, 7, 10], desc: "The minor pentatonic scale with an added 'blue note' (flat 5). Essential for blues, jazz, and rock music." },
+  "harmonic_minor": { name: "Harmonic Minor", intervals: [0, 2, 3, 5, 7, 8, 11], desc: "A minor scale with a raised 7th. Created to provide a stronger V-i resolution. Gives a distinct classical (Bach) or Middle Eastern flavor." },
+  "melodic_minor": { name: "Melodic Minor", intervals: [0, 2, 3, 5, 7, 9, 11], desc: "A minor scale with raised 6th and 7th (ascending). Smooths out the awkward jump in the harmonic minor scale. Extremely common in classical and jazz music." }
+};
+
+let audioCtx = null;
+
+// DOM Elements
+const instrumentSelect = document.getElementById("instrument");
+const rootNoteSelect = document.getElementById("root-note");
+const scaleTypeSelect = document.getElementById("scale-type");
+const scaleNameEl = document.getElementById("scale-name");
+const scaleDescEl = document.getElementById("scale-desc");
+const instrumentView = document.getElementById("instrument-view");
+const playScaleBtn = document.getElementById("play-scale-btn");
+const chordsContainer = document.getElementById("chords-container");
+
+// Init
+function init() {
+  NOTES.forEach((note, i) => {
+    let opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = note;
+    rootNoteSelect.appendChild(opt);
+  });
+
+  for (let key in SCALES) {
+    let opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = SCALES[key].name;
+    scaleTypeSelect.appendChild(opt);
+  }
+
+  instrumentSelect.addEventListener("change", updateView);
+  rootNoteSelect.addEventListener("change", updateView);
+  scaleTypeSelect.addEventListener("change", updateView);
+  playScaleBtn.addEventListener("click", playScale);
+
+  updateView();
+}
+
+function getCurrentScale() {
+  const rootIndex = parseInt(rootNoteSelect.value);
+  const scaleKey = scaleTypeSelect.value;
+  const scale = SCALES[scaleKey];
+
+  let scaleMidiSet = new Set();
+  let rootMidiSet = new Set();
+
+  // Cover octaves 1 through 7
+  for (let oct = 1; oct <= 7; oct++) {
+    scale.intervals.forEach(interval => {
+      let midi = (oct * 12) + rootIndex + interval;
+      scaleMidiSet.add(midi);
+      if (interval === 0) rootMidiSet.add(midi);
+    });
+  }
+
+  return { rootIndex, scaleKey, scale, scaleMidiSet, rootMidiSet };
+}
+
+function updateView() {
+  const { scale, rootIndex } = getCurrentScale();
+  const rootNoteName = NOTES[rootIndex];
+
+  scaleNameEl.textContent = `${rootNoteName} ${scale.name}`;
+  scaleDescEl.textContent = scale.desc;
+
+  if (instrumentSelect.value === "piano") {
+    renderPiano();
+  } else {
+    renderGuitar();
+  }
+
+  renderChords();
+}
+
+// Audio Engine
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function playNoteAudio(midi, duration = 0.5) {
+  initAudio();
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  if (instrumentSelect.value === "piano") {
+      osc.type = "triangle";
+  } else {
+      osc.type = "sawtooth";
+  }
+
+  osc.frequency.setValueAtTime(midiToFreq(midi), audioCtx.currentTime);
+
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function highlightNoteOn(midi) {
+  const els = document.querySelectorAll(`[data-midi="${midi}"]`);
+  els.forEach(el => {
+    if (el.classList.contains('fret')) {
+      const marker = el.querySelector('.note-marker');
+      if (marker) marker.classList.add('playing');
+    } else {
+      el.classList.add('playing');
+    }
+  });
+}
+
+function highlightNoteOff(midi) {
+  const els = document.querySelectorAll(`[data-midi="${midi}"]`);
+  els.forEach(el => {
+    if (el.classList.contains('fret')) {
+      const marker = el.querySelector('.note-marker');
+      if (marker) marker.classList.remove('playing');
+    } else {
+      el.classList.remove('playing');
+    }
+  });
+}
+
+function playNote(midi, duration = 0.5) {
+  playNoteAudio(midi, duration);
+  highlightNoteOn(midi);
+  setTimeout(() => highlightNoteOff(midi), duration * 1000);
+}
+
+// Rendering
+function renderPiano() {
+  instrumentView.innerHTML = '';
+  const { scaleMidiSet, rootMidiSet } = getCurrentScale();
+
+  const pianoDiv = document.createElement("div");
+  pianoDiv.className = "piano";
+
+  // Render from C3 (48) to B5 (83)
+  const startMidi = 48;
+  const endMidi = 83;
+
+  for (let midi = startMidi; midi <= endMidi; midi++) {
+    const noteIndex = midi % 12;
+    const isBlack = [1, 3, 6, 8, 10].includes(noteIndex);
+
+    const key = document.createElement("div");
+    key.className = `key ${isBlack ? 'black' : 'white'}`;
+    key.dataset.midi = midi;
+
+    if (scaleMidiSet.has(midi)) key.classList.add("in-scale");
+    if (rootMidiSet.has(midi)) key.classList.add("root");
+
+    key.addEventListener("mousedown", () => playNote(midi));
+    key.addEventListener("touchstart", (e) => { e.preventDefault(); playNote(midi); });
+
+    pianoDiv.appendChild(key);
+  }
+
+  instrumentView.appendChild(pianoDiv);
+}
+
+function renderGuitar() {
+  instrumentView.innerHTML = '';
+  const { scaleMidiSet, rootMidiSet } = getCurrentScale();
+
+  const guitarDiv = document.createElement("div");
+  guitarDiv.className = "guitar";
+
+  // Standard tuning: High E, B, G, D, A, Low E -> [64, 59, 55, 50, 45, 40]
+  const strings = [64, 59, 55, 50, 45, 40];
+  const numFrets = 22;
+
+  strings.forEach((openMidi, stringIdx) => {
+    const stringDiv = document.createElement("div");
+    stringDiv.className = "string";
+
+    const stringLine = document.createElement("div");
+    stringLine.className = "string-line";
+    stringLine.style.height = `${1 + (stringIdx * 0.4)}px`;
+    stringDiv.appendChild(stringLine);
+
+    for (let fret = 0; fret <= numFrets; fret++) {
+      const midi = openMidi + fret;
+      const noteName = NOTES[midi % 12];
+
+      const fretDiv = document.createElement("div");
+      fretDiv.className = "fret";
+      fretDiv.dataset.midi = midi;
+
+      const marker = document.createElement("div");
+      marker.className = "note-marker";
+      marker.textContent = noteName;
+
+      if (scaleMidiSet.has(midi)) marker.classList.add("in-scale");
+      if (rootMidiSet.has(midi)) marker.classList.add("root");
+
+      fretDiv.appendChild(marker);
+
+      fretDiv.addEventListener("mousedown", () => playNote(midi));
+      fretDiv.addEventListener("touchstart", (e) => { e.preventDefault(); playNote(midi); });
+
+      stringDiv.appendChild(fretDiv);
+    }
+
+    guitarDiv.appendChild(stringDiv);
+  });
+
+  const fretNumbersRow = document.createElement("div");
+  fretNumbersRow.className = "fret-number-row";
+  for (let fret = 0; fret <= numFrets; fret++) {
+    const fnDiv = document.createElement("div");
+    fnDiv.className = "fret-number";
+    if ([3, 5, 7, 9, 12, 15, 17, 19, 21].includes(fret)) {
+      fnDiv.textContent = fret;
+    }
+    fretNumbersRow.appendChild(fnDiv);
+  }
+  guitarDiv.appendChild(fretNumbersRow);
+
+  instrumentView.appendChild(guitarDiv);
+}
+
+function renderChords() {
+  chordsContainer.innerHTML = '';
+  const { rootIndex, scale } = getCurrentScale();
+
+  // Only diatonic chords for 7-note scales are rendered for simplicity
+  const numNotes = scale.intervals.length;
+  if (numNotes !== 7) return;
+
+  let baseMidi = 60 + rootIndex;
+  const scaleNotes = [];
+  for (let oct = 0; oct < 2; oct++) {
+    scale.intervals.forEach(interval => {
+      scaleNotes.push(baseMidi + (oct * 12) + interval);
+    });
+  }
+
+  const chordNames = ["I", "II", "III", "IV", "V", "VI", "VII"];
+
+  for (let i = 0; i < 7; i++) {
+    const chordNotes = [scaleNotes[i], scaleNotes[i+2], scaleNotes[i+4]];
+
+    const btn = document.createElement("button");
+    btn.className = "chord-btn";
+    btn.textContent = `${chordNames[i]} Chord`;
+    btn.addEventListener("click", () => {
+      chordNotes.forEach(midi => playNote(midi, 1.5));
+    });
+
+    chordsContainer.appendChild(btn);
+  }
+}
+
+let isPlayingSequence = false;
+function playScale() {
+  if (isPlayingSequence) return;
+  isPlayingSequence = true;
+  initAudio();
+
+  const { rootIndex, scale } = getCurrentScale();
+  let startMidi = 48 + rootIndex; // Piano defaults to C3
+
+  if (instrumentSelect.value === "guitar") {
+      startMidi = rootIndex >= 4 ? 36 + rootIndex : 48 + rootIndex;
+  }
+
+  const sequence = [];
+  // Ascending
+  scale.intervals.forEach(interval => sequence.push(startMidi + interval));
+  // Add top root note
+  sequence.push(startMidi + 12);
+  // Descending
+  for (let i = sequence.length - 2; i >= 0; i--) {
+      sequence.push(sequence[i]);
+  }
+
+  let timeOffset = 0;
+  const duration = 0.3;
+
+  sequence.forEach((midi, index) => {
+    setTimeout(() => {
+      playNote(midi, duration);
+      if (index === sequence.length - 1) {
+        setTimeout(() => isPlayingSequence = false, duration * 1000);
+      }
+    }, timeOffset * 1000);
+    timeOffset += duration;
+  });
+}
+
+window.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
