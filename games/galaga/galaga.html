@@ -331,27 +331,46 @@
         'M': '#ff00ff', // Magenta
         'D': '#555555', // Dark Grey
         'L': '#aaaaaa', // Light Grey
-        'P': '#ffb6c1'  // Pink
+        'P': '#ffb6c1',  // Pink
+        'T': 'TINT' // Special tint token
     };
 
     const SPRITES = {
+        powerup: [
+            "..WWWW..",
+            ".W....W.",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            "W.TTTT.W",
+            ".W....W.",
+            "..WWWW.."
+        ],
         ship: [
             ".......W........",
             "......WWW.......",
             "......WWW.......",
             ".....WWWWW......",
-            "....WW.R.WW.....",
-            "....WW.W.WW.....",
-            "....WW.W.WW.....",
-            "....WWWWWWW.....",
-            "....WWWWWWW.....",
-            "...WWWWWWWWW....",
-            "...W.WWWWW.W....",
-            "..WW.WWWWW.WW...",
-            "..WW.WWWWW.WW...",
-            ".WW..WWWWW..WW..",
-            ".WW..WWWWW..WW..",
-            "WW...WWWWW...WW."
+            "....WWWRWWW.....",
+            "....WWWRWWW.....",
+            "....WWWRWWW.....",
+            "....WWWRWWW.....",
+            "....WWBBWWW.....",
+            "...WBBWBBWBBW...",
+            "...WWWWWWWWWW...",
+            "..WW..WWW..WW...",
+            "..WW..WWW..WW...",
+            ".WW...WWW...WW..",
+            ".WW...WWW...WW..",
+            "WW....WWW....WW."
         ],
         shipFlame1: [
             ".......R........",
@@ -468,35 +487,36 @@
     };
 
     let renderedSprites = {};
+    let powerUpSprites = {}; // Cache for tinted power-up sprites
+
+    function createTintedSprite(key, tintColor) {
+        let art = SPRITES[key];
+        let cols = art[0].length;
+        let rows = art.length;
+
+        let sc = document.createElement('canvas');
+        sc.width = cols;
+        sc.height = rows;
+        let sctx = sc.getContext('2d');
+        sctx.imageSmoothingEnabled = false;
+
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                let char = art[y][x];
+                let color = SPRITE_PALETTE[char];
+                if (color) {
+                    sctx.fillStyle = color === 'TINT' ? tintColor : color;
+                    sctx.fillRect(x, y, 1, 1);
+                }
+            }
+        }
+        return { canvas: sc, w: cols, h: rows };
+    }
 
     function initSprites() {
         for (let key in SPRITES) {
-            let art = SPRITES[key];
-            let cols = art[0].length;
-            let rows = art.length;
-
-            // Create a small offscreen canvas for crisp nearest-neighbor scaling
-            let sc = document.createElement('canvas');
-            sc.width = cols;
-            sc.height = rows;
-            let sctx = sc.getContext('2d');
-            sctx.imageSmoothingEnabled = false;
-
-            for (let y = 0; y < rows; y++) {
-                for (let x = 0; x < cols; x++) {
-                    let char = art[y][x];
-                    let color = SPRITE_PALETTE[char];
-                    if (color) {
-                        sctx.fillStyle = color;
-                        sctx.fillRect(x, y, 1, 1);
-                    }
-                }
-            }
-            renderedSprites[key] = {
-                canvas: sc,
-                w: cols,
-                h: rows
-            };
+            if (key === 'powerup') continue; // Handled dynamically
+            renderedSprites[key] = createTintedSprite(key, null);
         }
     }
 
@@ -2624,25 +2644,26 @@
             // Glow
             ctx.shadowColor = p.color;
             ctx.shadowBlur = 12;
-            // Rotating diamond shape
             ctx.save();
             ctx.translate(p.x, py);
-            ctx.rotate(frameCount * 0.04);
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.moveTo(0, -p.size);
-            ctx.lineTo(p.size, 0);
-            ctx.lineTo(0, p.size);
-            ctx.lineTo(-p.size, 0);
-            ctx.closePath();
-            ctx.fill();
-            // Icon letter
-            ctx.rotate(-frameCount * 0.04);
-            ctx.fillStyle = '#fff';
-            ctx.font = `bold ${p.size * 1.1}px monospace`;
+
+            // Draw pixelated capsule sprite
+            if (!powerUpSprites[p.type]) {
+                powerUpSprites[p.type] = createTintedSprite('powerup', p.color);
+            }
+            let sprite = powerUpSprites[p.type];
+            let drawSize = p.size * 2.2;
+
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(sprite.canvas, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+
+            // Icon letter inside capsule
+            ctx.fillStyle = '#000'; // Make letter dark to stand out from bright pill
+            ctx.font = `bold ${p.size * 1.2}px monospace`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(p.icon, 0, 1);
+
             ctx.restore();
             ctx.shadowBlur = 0;
         }
@@ -2788,14 +2809,15 @@
 
     // ----- TOUCH CONTROLS -----
     let activeTouchId = null;
-    let touchOffsetX = 0;
 
     touchZone.addEventListener('touchstart', function(e) {
         e.preventDefault();
         if (!gameRunning) return;
         const t = e.changedTouches[0];
         activeTouchId = t.identifier;
-        touchOffsetX = player.x - t.clientX;
+        let newX = t.clientX;
+        newX = Math.max(player.w * 0.5, Math.min(W - player.w * 0.5, newX));
+        player.x = newX;
     }, { passive: false });
 
     touchZone.addEventListener('touchmove', function(e) {
@@ -2804,7 +2826,7 @@
         for (let i = 0; i < e.changedTouches.length; i++) {
             const t = e.changedTouches[i];
             if (t.identifier === activeTouchId) {
-                let newX = t.clientX + touchOffsetX;
+                let newX = t.clientX;
                 newX = Math.max(player.w * 0.5, Math.min(W - player.w * 0.5, newX));
                 player.x = newX;
             }
