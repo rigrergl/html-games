@@ -39,9 +39,9 @@ Detailed documentation lives in `instructions/`. Key files:
    - Take a screenshot and capture video to verify rendering and gameplay → save screenshot as `games/game-name/screenshot.png`.
    - Interact with the game using Playwright to verify mechanics.
    - You can also write scripts to evaluate JS, inspect the DOM, check network requests, and read console messages for debugging.
-3. **Write** `games/game-name/README.md` with title, screenshot, main-branch preview link, description
-4. **Commit and push** to your working branch
-5. **Deliver** the feature-branch preview link to the user:
+3. **Write** `games/game-name/README.md` with title, screenshot, description, and the **main-branch** preview link (which will be active after merge).
+4. **Commit and push** to your working branch.
+5. **Create a Pull Request (PR)** and include the **feature-branch preview link** in the PR description so the user can test the game before merging. Also, **deliver** this link to the user in the chat:
    ```
    https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/{BRANCH}/games/game-name/game-name.html
    ```
