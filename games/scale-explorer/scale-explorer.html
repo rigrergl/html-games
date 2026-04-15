@@ -232,26 +232,74 @@ function midiToFreq(midi) {
 function playNoteAudio(midi, duration = 0.5) {
   initAudio();
 
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-
   if (instrumentSelect.value === "piano") {
-      osc.type = "triangle";
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(midiToFreq(midi), audioCtx.currentTime);
+
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + duration);
   } else {
-      osc.type = "sawtooth";
+    // Karplus-Strong string synthesis for Acoustic Guitar
+    const freq = midiToFreq(midi);
+
+    // 1. Excitation (Pluck)
+    const burstDuration = 0.02; // 20ms noise burst
+    const bufferSize = audioCtx.sampleRate * burstDuration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+        // White noise faded out
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = buffer;
+
+    // 2. The String (Delay Loop)
+    const delayNode = audioCtx.createDelay(1.0);
+    // Setting the delay time establishes the fundamental pitch
+    delayNode.delayTime.value = 1 / freq;
+
+    // 3. String Damping (Lowpass Filter)
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = freq * 6; // Damping
+
+    // 4. Decay (Feedback Gain)
+    const feedbackGain = audioCtx.createGain();
+    // Feedback value determines how long the string rings
+    feedbackGain.gain.value = 0.99;
+
+    // Connect Excitation to String
+    noiseSource.connect(delayNode);
+
+    // Form the feedback loop: Delay -> Filter -> Feedback -> Delay
+    delayNode.connect(filter);
+    filter.connect(feedbackGain);
+    feedbackGain.connect(delayNode);
+
+    // 5. Output and Master Envelope
+    const outputGain = audioCtx.createGain();
+    outputGain.gain.setValueAtTime(1.0, audioCtx.currentTime); // Boost output slightly
+    outputGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+    delayNode.connect(outputGain);
+    outputGain.connect(audioCtx.destination);
+
+    // Pluck the string
+    noiseSource.start();
   }
-
-  osc.frequency.setValueAtTime(midiToFreq(midi), audioCtx.currentTime);
-
-  gain.gain.setValueAtTime(0, audioCtx.currentTime);
-  gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-
-  osc.start(audioCtx.currentTime);
-  osc.stop(audioCtx.currentTime + duration);
 }
 
 function highlightNoteOn(midi) {
