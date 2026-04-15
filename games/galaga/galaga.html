@@ -18,6 +18,11 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        @font-face {
+            font-family: 'Press Start 2P';
+            src: url('fonts/PressStart2P.ttf') format('truetype');
+        }
+
         html, body {
             background: #000;
             overflow: hidden;
@@ -25,7 +30,7 @@
             position: fixed;
             width: 100%;
             height: 100%;
-            font-family: 'Courier New', monospace;
+            font-family: 'Press Start 2P', 'Courier New', monospace;
         }
 
         #gameContainer {
@@ -81,8 +86,8 @@
         .btn {
             margin-top: 30px;
             padding: 18px 54px;
-            font-size: clamp(18px, 6vw, 32px);
-            font-family: 'Courier New', monospace;
+            font-size: clamp(14px, 4vw, 24px);
+            font-family: 'Press Start 2P', monospace;
             background: transparent;
             color: #0f0;
             border: 2px solid #0f0;
@@ -90,6 +95,82 @@
             cursor: pointer;
             text-shadow: 0 0 10px #0f0;
             box-shadow: 0 0 15px rgba(0,255,0,0.3), inset 0 0 15px rgba(0,255,0,0.1);
+        }
+
+        .coin-slot-container {
+            margin-top: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .insert-coin-text {
+            color: #ff0;
+            font-size: clamp(12px, 3.5vw, 20px);
+            animation: blink 1s step-end infinite;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px #f00;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        .coin-slot {
+            width: 40px;
+            height: 80px;
+            background: #222;
+            border: 4px solid #555;
+            border-radius: 5px;
+            position: relative;
+            box-shadow: inset 0 0 10px #000, 0 0 10px rgba(255,255,255,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .coin-slot-hole {
+            width: 8px;
+            height: 50px;
+            background: #000;
+            border-radius: 4px;
+            box-shadow: inset 0 0 5px rgba(255,0,0,0.5);
+        }
+
+        .coin {
+            position: absolute;
+            top: -60px;
+            width: 30px;
+            height: 30px;
+            background: radial-gradient(circle, #ffd700 30%, #b8860b 80%);
+            border-radius: 50%;
+            border: 2px solid #daa520;
+            opacity: 0;
+            pointer-events: none;
+            box-shadow: 0 0 10px rgba(255,215,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 10px;
+            color: #b8860b;
+        }
+
+        .coin::after {
+            content: "25¢";
+        }
+
+        .coin.drop {
+            animation: coinDrop 0.8s ease-in forwards;
+        }
+
+        @keyframes coinDrop {
+            0% { top: -60px; opacity: 0; transform: scale(1.5) rotateY(0deg); }
+            20% { opacity: 1; }
+            60% { top: -20px; transform: scale(1) rotateY(360deg); }
+            80% { top: 10px; opacity: 1; }
+            100% { top: 40px; opacity: 0; transform: scale(0.8) rotateY(720deg); }
         }
 
         .btn:active {
@@ -202,7 +283,13 @@
         <p>Drag left/right to move</p>
         <p>Ship auto-fires!</p>
         <p>Grab power-ups for special weapons!</p>
-        <button class="btn" id="startBtn">START</button>
+        <div class="coin-slot-container" id="startBtn">
+            <div class="insert-coin-text">INSERT COIN</div>
+            <div class="coin-slot">
+                <div class="coin-slot-hole"></div>
+            </div>
+            <div class="coin" id="coinAnim"></div>
+        </div>
     </div>
 
     <div id="gameOverScreen" style="display:none">
@@ -230,6 +317,188 @@
     let hiScore = parseInt(localStorage.getItem('galagaHi') || '0');
     let frameCount = 0;
     let animId = null;
+
+        // --- PIXEL ART SPRITES ---
+    const SPRITE_PALETTE = {
+        '.': null,
+        'W': '#ffffff', // White
+        'R': '#ff0000', // Red
+        'G': '#00ff00', // Green
+        'B': '#0000ff', // Blue
+        'Y': '#ffff00', // Yellow
+        'O': '#ffa500', // Orange
+        'C': '#00ffff', // Cyan
+        'M': '#ff00ff', // Magenta
+        'D': '#555555', // Dark Grey
+        'L': '#aaaaaa', // Light Grey
+        'P': '#ffb6c1'  // Pink
+    };
+
+    const SPRITES = {
+        ship: [
+            ".......W........",
+            "......WWW.......",
+            "......WWW.......",
+            ".....WWWWW......",
+            "....WW.R.WW.....",
+            "....WW.W.WW.....",
+            "....WW.W.WW.....",
+            "....WWWWWWW.....",
+            "....WWWWWWW.....",
+            "...WWWWWWWWW....",
+            "...W.WWWWW.W....",
+            "..WW.WWWWW.WW...",
+            "..WW.WWWWW.WW...",
+            ".WW..WWWWW..WW..",
+            ".WW..WWWWW..WW..",
+            "WW...WWWWW...WW."
+        ],
+        shipFlame1: [
+            ".......R........",
+            "......RYR.......",
+            "......YWY.......",
+            ".......Y........"
+        ],
+        shipFlame2: [
+            "......RYR.......",
+            "......YWY.......",
+            ".......W........",
+            "................"
+        ],
+        bug1: [
+            "....R....R....",
+            ".....R..R.....",
+            "....RRRRRR....",
+            "...RR.RR.RR...",
+            "..RRRRRRRRRR..",
+            "..RRRRRRRRRR..",
+            "..R.RRRRRR.R..",
+            "....R....R...."
+        ],
+        bug2: [
+            "....R....R....",
+            ".....R..R.....",
+            "....RRRRRR....",
+            "...RR.RR.RR...",
+            "..RRRRRRRRRR..",
+            "..RR.RRRR.RR..",
+            "..R.R....R.R..",
+            "...R......R..."
+        ],
+        bee1: [
+            "....WWWW....",
+            "..WWYWWYWW..",
+            "..WWWWWWWW..",
+            "..YYYYYYYY..",
+            "...YY..YY...",
+            "....YYYY....",
+            ".....YY.....",
+            ".....YY....."
+        ],
+        bee2: [
+            "....WWWW....",
+            "..W.YWWY.W..",
+            "..WWWWWWWW..",
+            "...YYYYYY...",
+            "..Y.YY..Y.Y.",
+            "....YYYY....",
+            "...Y.YY.Y...",
+            ".....YY....."
+        ],
+        boss1: [
+            "..GG......GG..",
+            "G..G......G..G",
+            "G..GGGGGGGG..G",
+            "G.GGGGGGGGGG.G",
+            ".GGGGGGGGGGGG.",
+            ".G.GGGGGGGG.G.",
+            ".G.GG....GG.G.",
+            "..G........G.."
+        ],
+        boss2: [
+            "..GG......GG..",
+            ".G.G......G.G.",
+            "G..GGGGGGGG..G",
+            ".GGGGGGGGGGGG.",
+            ".GGGGGGGGGGGG.",
+            "..GGGGGGGGGG..",
+            "...GG....GG...",
+            "G.G........G.G"
+        ],
+        stealth1: [
+            "......CC......",
+            ".....C..C.....",
+            "....C....C....",
+            "...C......C...",
+            "..C........C..",
+            "...C......C...",
+            "....C....C....",
+            ".....CCCC....."
+        ],
+        stealth2: [
+            "......CC......",
+            "......CC......",
+            ".....CCCC.....",
+            "....C....C....",
+            "...C......C...",
+            "..C........C..",
+            "...C......C...",
+            "....CCCCCC...."
+        ],
+        bomber1: [
+            "....OOOOOO....",
+            "...OOOOOOOO...",
+            "..OO.OOOO.OO..",
+            ".OOOOOOOOOOOO.",
+            ".OO.OOOOOO.OO.",
+            ".OOOOOOOOOOOO.",
+            "..OO......OO..",
+            "O.OO......OO.O"
+        ],
+        bomber2: [
+            "....OOOOOO....",
+            "...OOOOOOOO...",
+            "..OO.OOOO.OO..",
+            ".OOOOOOOOOOOO.",
+            "OOO.OOOOOO.OOO",
+            ".OOOOOOOOOOOO.",
+            "..OO......OO..",
+            "...O......O..."
+        ]
+    };
+
+    let renderedSprites = {};
+
+    function initSprites() {
+        for (let key in SPRITES) {
+            let art = SPRITES[key];
+            let cols = art[0].length;
+            let rows = art.length;
+
+            // Create a small offscreen canvas for crisp nearest-neighbor scaling
+            let sc = document.createElement('canvas');
+            sc.width = cols;
+            sc.height = rows;
+            let sctx = sc.getContext('2d');
+            sctx.imageSmoothingEnabled = false;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    let char = art[y][x];
+                    let color = SPRITE_PALETTE[char];
+                    if (color) {
+                        sctx.fillStyle = color;
+                        sctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+            renderedSprites[key] = {
+                canvas: sc,
+                w: cols,
+                h: rows
+            };
+        }
+    }
 
     function getViewportHeight() { return window.innerHeight; }
 
@@ -343,6 +612,16 @@
         },
 
         // --- SOUND EFFECTS ---
+
+        coinInsert() {
+            if (!this.ctx) return;
+            this.resume();
+            const t = this.ctx.currentTime;
+
+            // Arcade coin insert sound: two high-pitched chimes
+            this.playTone(987.77, 'square', 0.1, 0.1, t); // B5
+            this.playTone(1318.51, 'square', 0.3, 0.1, t + 0.1); // E6
+        },
 
         shoot() {
             if (!this.ctx) return;
@@ -628,6 +907,9 @@
     function resize() {
         W = canvas.width = window.innerWidth;
         H = canvas.height = getViewportHeight();
+        if (Object.keys(renderedSprites).length === 0) {
+            initSprites();
+        }
         canvas.style.width = '100%';
         canvas.style.height = '100%';
         scale = Math.min(W / 390, H / 844);
@@ -658,77 +940,24 @@
         ctx.save();
         ctx.translate(x, y);
 
-        // Glow under ship
-        let grd = ctx.createRadialGradient(0, h * 0.2, 0, 0, h * 0.2, w * 0.8);
-        grd.addColorStop(0, 'rgba(68,204,255,0.15)');
-        grd.addColorStop(1, 'rgba(68,204,255,0)');
-        ctx.fillStyle = grd;
-        ctx.fillRect(-w, -h * 0.5, w * 2, h * 1.5);
+        // Turn off smoothing for pixel art
+        ctx.imageSmoothingEnabled = false;
 
-        // Main body
-        ctx.fillStyle = '#4cf';
-        ctx.strokeStyle = '#8ef';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, -h * 0.65);
-        ctx.lineTo(-w * 0.45, h * 0.4);
-        ctx.lineTo(-w * 0.2, h * 0.28);
-        ctx.lineTo(w * 0.2, h * 0.28);
-        ctx.lineTo(w * 0.45, h * 0.4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        // Draw player sprite
+        let sprite = renderedSprites.ship;
+        if (sprite) {
+            ctx.drawImage(sprite.canvas, -w/2, -h/2, w, h);
+        }
 
-        // Cockpit
-        let cockpitGrd = ctx.createRadialGradient(0, -h * 0.2, 0, 0, -h * 0.2, w * 0.15);
-        cockpitGrd.addColorStop(0, '#fff');
-        cockpitGrd.addColorStop(1, '#4cf');
-        ctx.fillStyle = cockpitGrd;
-        ctx.beginPath();
-        ctx.arc(0, -h * 0.2, w * 0.12, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Wings
-        ctx.fillStyle = '#08f';
-        ctx.beginPath();
-        ctx.moveTo(-w * 0.45, h * 0.4);
-        ctx.lineTo(-w * 0.65, h * 0.5);
-        ctx.lineTo(-w * 0.2, h * 0.28);
-        ctx.closePath();
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(w * 0.45, h * 0.4);
-        ctx.lineTo(w * 0.65, h * 0.5);
-        ctx.lineTo(w * 0.2, h * 0.28);
-        ctx.closePath();
-        ctx.fill();
-
-        // Thruster flames (double)
-        let flicker = Math.random();
-        let flameH = h * (0.4 + flicker * 0.35);
-        // Left thruster
-        ctx.fillStyle = `hsl(${25 + flicker * 25}, 100%, ${55 + flicker * 30}%)`;
-        ctx.beginPath();
-        ctx.moveTo(-w * 0.15, h * 0.28);
-        ctx.lineTo(-w * 0.05, h * 0.28 + flameH);
-        ctx.lineTo(w * 0.02, h * 0.28);
-        ctx.closePath();
-        ctx.fill();
-        // Right thruster
-        ctx.beginPath();
-        ctx.moveTo(w * 0.15, h * 0.28);
-        ctx.lineTo(w * 0.05, h * 0.28 + flameH * 0.9);
-        ctx.lineTo(-w * 0.02, h * 0.28);
-        ctx.closePath();
-        ctx.fill();
-        // Inner white core
-        ctx.fillStyle = `rgba(255,255,200,${0.5 + flicker * 0.5})`;
-        ctx.beginPath();
-        ctx.moveTo(-w * 0.08, h * 0.28);
-        ctx.lineTo(-w * 0.02, h * 0.28 + flameH * 0.5);
-        ctx.lineTo(w * 0.04, h * 0.28);
-        ctx.closePath();
-        ctx.fill();
+        // Draw animated flames
+        let isMoving = keys && (keys['ArrowLeft'] || keys['a'] || keys['ArrowRight'] || keys['d']);
+        let flameKey = (frameCount % 6 < 3) ? 'shipFlame1' : 'shipFlame2';
+        let flameSprite = renderedSprites[flameKey];
+        if (flameSprite) {
+            // Adjust flame size depending on if moving
+            let fHeight = isMoving ? h * 0.4 : h * 0.3;
+            ctx.drawImage(flameSprite.canvas, -w/2, h/2 - 2, w, fHeight);
+        }
 
         // Shield effect
         if (currentPowerUp === 'shield' && shieldHP > 0) {
@@ -746,160 +975,84 @@
 
         ctx.restore();
     }
-
     // Enemy types
     const ENEMY_TYPES = [
         { // Bug
-            color: '#f44', color2: '#f88',
+            color: '#f44',
             draw(x, y, w, h, t) {
                 ctx.save(); ctx.translate(x, y);
-                // Glow
+                ctx.imageSmoothingEnabled = false;
                 ctx.shadowColor = this.color;
                 ctx.shadowBlur = 6 * scale;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.ellipse(0, 0, w * 0.5, h * 0.5, 0, 0, Math.PI * 2);
-                ctx.fill();
+                let spriteName = (Math.floor(t / 15) % 2 === 0) ? 'bug1' : 'bug2';
+                let sprite = renderedSprites[spriteName];
+                if (sprite) ctx.drawImage(sprite.canvas, -w/2, -h/2, w, h);
                 ctx.shadowBlur = 0;
-                ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(-w * 0.2, -h * 0.15, w * 0.12, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(w * 0.2, -h * 0.15, w * 0.12, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#000';
-                ctx.beginPath(); ctx.arc(-w * 0.2, -h * 0.15, w * 0.07, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(w * 0.2, -h * 0.15, w * 0.07, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = this.color2;
-                let flap = Math.sin(t * 0.12) * 0.4;
-                ctx.beginPath();
-                ctx.ellipse(-w * 0.6, 0, w * 0.24, h * 0.32, flap, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.ellipse(w * 0.6, 0, w * 0.24, h * 0.32, -flap, 0, Math.PI * 2);
-                ctx.fill();
                 ctx.restore();
             },
             hp: 1, score: 100
         },
         { // Bee
-            color: '#ff0', color2: '#fa0',
+            color: '#ff0',
             draw(x, y, w, h, t) {
                 ctx.save(); ctx.translate(x, y);
+                ctx.imageSmoothingEnabled = false;
                 ctx.shadowColor = this.color;
                 ctx.shadowBlur = 5 * scale;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(0, -h * 0.5);
-                ctx.lineTo(w * 0.5, 0);
-                ctx.lineTo(w * 0.3, h * 0.5);
-                ctx.lineTo(-w * 0.3, h * 0.5);
-                ctx.lineTo(-w * 0.5, 0);
-                ctx.closePath();
-                ctx.fill();
+                let spriteName = (Math.floor(t / 10) % 2 === 0) ? 'bee1' : 'bee2';
+                let sprite = renderedSprites[spriteName];
+                if (sprite) ctx.drawImage(sprite.canvas, -w/2, -h/2, w, h);
                 ctx.shadowBlur = 0;
-                ctx.fillStyle = '#000';
-                ctx.fillRect(-w * 0.3, -h * 0.1, w * 0.6, h * 0.1);
-                ctx.fillRect(-w * 0.3, h * 0.12, w * 0.6, h * 0.1);
-                ctx.fillStyle = '#f00';
-                ctx.beginPath(); ctx.arc(-w * 0.18, -h * 0.22, w * 0.1, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(w * 0.18, -h * 0.22, w * 0.1, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
             },
             hp: 1, score: 150
         },
         { // Boss
-            color: '#0f0', color2: '#0a0',
+            color: '#0f0',
             draw(x, y, w, h, t) {
                 ctx.save(); ctx.translate(x, y);
                 let bw = w * 1.3, bh = h * 1.3;
+                ctx.imageSmoothingEnabled = false;
                 ctx.shadowColor = this.color;
                 ctx.shadowBlur = 8 * scale;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(0, 0, bw * 0.5, 0, Math.PI * 2);
-                ctx.fill();
+                let spriteName = (Math.floor(t / 20) % 2 === 0) ? 'boss1' : 'boss2';
+                let sprite = renderedSprites[spriteName];
+                if (sprite) ctx.drawImage(sprite.canvas, -bw/2, -bh/2, bw, bh);
                 ctx.shadowBlur = 0;
-                ctx.fillStyle = this.color2;
-                ctx.beginPath();
-                ctx.moveTo(-bw * 0.3, -bh * 0.3);
-                ctx.lineTo(-bw * 0.55, -bh * 0.75);
-                ctx.lineTo(-bw * 0.12, -bh * 0.3);
-                ctx.closePath();
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(bw * 0.3, -bh * 0.3);
-                ctx.lineTo(bw * 0.55, -bh * 0.75);
-                ctx.lineTo(bw * 0.12, -bh * 0.3);
-                ctx.closePath();
-                ctx.fill();
-                ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(-bw * 0.17, -bh * 0.08, bw * 0.14, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(bw * 0.17, -bh * 0.08, bw * 0.14, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#f0f';
-                ctx.beginPath(); ctx.arc(-bw * 0.17, -bh * 0.08, bw * 0.08, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(bw * 0.17, -bh * 0.08, bw * 0.08, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
             },
             hp: 3, score: 400
         },
         { // Stealth - fades in and out
-            color: '#88f', color2: '#aaf',
+            color: '#88f',
             draw(x, y, w, h, t) {
                 ctx.save(); ctx.translate(x, y);
                 let alpha = 0.3 + Math.abs(Math.sin(t * 0.03)) * 0.7;
                 ctx.globalAlpha = alpha;
+                ctx.imageSmoothingEnabled = false;
                 ctx.shadowColor = this.color;
                 ctx.shadowBlur = 6 * scale;
-                ctx.fillStyle = this.color;
-                // Diamond body
-                ctx.beginPath();
-                ctx.moveTo(0, -h * 0.55);
-                ctx.lineTo(w * 0.55, 0);
-                ctx.lineTo(0, h * 0.55);
-                ctx.lineTo(-w * 0.55, 0);
-                ctx.closePath();
-                ctx.fill();
+                let spriteName = (Math.floor(t / 12) % 2 === 0) ? 'stealth1' : 'stealth2';
+                let sprite = renderedSprites[spriteName];
+                if (sprite) ctx.drawImage(sprite.canvas, -w/2, -h/2, w, h);
                 ctx.shadowBlur = 0;
-                // Inner cross
-                ctx.fillStyle = this.color2;
-                ctx.fillRect(-w * 0.08, -h * 0.35, w * 0.16, h * 0.7);
-                ctx.fillRect(-w * 0.35, -h * 0.08, w * 0.7, h * 0.16);
-                // Eyes
-                ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(-w * 0.2, -h * 0.1, w * 0.08, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(w * 0.2, -h * 0.1, w * 0.08, 0, Math.PI * 2); ctx.fill();
                 ctx.globalAlpha = 1;
                 ctx.restore();
             },
             hp: 1, score: 250
         },
-        { // Bomber - drops cluster bombs when diving
-            color: '#f80', color2: '#a50',
+        { // Bomber
+            color: '#f80',
             draw(x, y, w, h, t) {
                 ctx.save(); ctx.translate(x, y);
                 let bw = w * 1.15, bh = h * 1.15;
+                ctx.imageSmoothingEnabled = false;
                 ctx.shadowColor = this.color;
                 ctx.shadowBlur = 6 * scale;
-                // Chunky hexagonal body
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(0, -bh * 0.5);
-                ctx.lineTo(bw * 0.45, -bh * 0.25);
-                ctx.lineTo(bw * 0.45, bh * 0.25);
-                ctx.lineTo(0, bh * 0.5);
-                ctx.lineTo(-bw * 0.45, bh * 0.25);
-                ctx.lineTo(-bw * 0.45, -bh * 0.25);
-                ctx.closePath();
-                ctx.fill();
+                let spriteName = (Math.floor(t / 8) % 2 === 0) ? 'bomber1' : 'bomber2';
+                let sprite = renderedSprites[spriteName];
+                if (sprite) ctx.drawImage(sprite.canvas, -bw/2, -bh/2, bw, bh);
                 ctx.shadowBlur = 0;
-                // Bomb bay markings
-                ctx.fillStyle = this.color2;
-                ctx.fillRect(-bw * 0.25, bh * 0.1, bw * 0.5, bh * 0.15);
-                // Angry eyes
-                ctx.fillStyle = '#f00';
-                ctx.beginPath(); ctx.arc(-bw * 0.15, -bh * 0.12, bw * 0.1, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(bw * 0.15, -bh * 0.12, bw * 0.1, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#ff0';
-                ctx.beginPath(); ctx.arc(-bw * 0.15, -bh * 0.12, bw * 0.05, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(bw * 0.15, -bh * 0.12, bw * 0.05, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
             },
             hp: 2, score: 300
@@ -2122,16 +2275,13 @@
 
         // Player bullets
         for (let b of bullets) {
+            ctx.imageSmoothingEnabled = false;
             if (b.supernova) {
                 let hue = (frameCount * 10 + b.x * 0.5) % 360;
                 ctx.fillStyle = `hsl(${hue},100%,60%)`;
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 5 * scale, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(b.x - 5 * scale, b.y - 5 * scale, 10 * scale, 10 * scale);
                 ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 2 * scale, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(b.x - 2 * scale, b.y - 2 * scale, 4 * scale, 4 * scale);
             } else if (b.freeze) {
                 ctx.fillStyle = '#8ff';
                 ctx.fillRect(b.x - 2 * scale, b.y - 8 * scale, 4 * scale, 16 * scale);
@@ -2139,48 +2289,27 @@
                 ctx.fillRect(b.x - 1 * scale, b.y - 6 * scale, 2 * scale, 12 * scale);
             } else if (b.ricochet) {
                 ctx.fillStyle = '#ef0';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 4 * scale, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(b.x - 4 * scale, b.y - 4 * scale, 8 * scale, 8 * scale);
                 ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 2 * scale, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(b.x - 2 * scale, b.y - 2 * scale, 4 * scale, 4 * scale);
             } else if (b.drone) {
                 ctx.fillStyle = '#bf0';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 3 * scale, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(b.x - 3 * scale, b.y - 3 * scale, 6 * scale, 6 * scale);
             } else if (b.drunk) {
-                // Drunk wobbly green bullets
-                ctx.shadowColor = '#5f5';
-                ctx.shadowBlur = 10;
                 ctx.fillStyle = '#5f5';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 4 * scale, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(b.x - 4 * scale, b.y - 4 * scale, 8 * scale, 8 * scale);
                 ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 1.5 * scale, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
+                ctx.fillRect(b.x - 1.5 * scale, b.y - 1.5 * scale, 3 * scale, 3 * scale);
             } else if (b.pierce) {
-                // Piercing shot - bright wide bolt
-                ctx.shadowColor = '#ff4';
-                ctx.shadowBlur = 14;
                 ctx.fillStyle = '#ff4';
                 ctx.fillRect(b.x - 3 * scale, b.y - 10 * scale, 6 * scale, 20 * scale);
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(b.x - 1.5 * scale, b.y - 8 * scale, 3 * scale, 16 * scale);
-                ctx.shadowBlur = 0;
             } else {
-                ctx.shadowColor = '#ff0';
-                ctx.shadowBlur = 8;
                 ctx.fillStyle = '#ff0';
-                ctx.fillRect(b.x - 1.5 * scale, b.y - 7 * scale, 3 * scale, 14 * scale);
+                ctx.fillRect(b.x - 2 * scale, b.y - 7 * scale, 4 * scale, 14 * scale);
                 ctx.fillStyle = '#fff';
-                ctx.fillRect(b.x - 0.7 * scale, b.y - 5 * scale, 1.4 * scale, 10 * scale);
-                ctx.shadowBlur = 0;
+                ctx.fillRect(b.x - 1 * scale, b.y - 5 * scale, 2 * scale, 10 * scale);
             }
         }
 
@@ -2457,14 +2586,12 @@
 
         // Enemy bullets
         for (let b of enemyBullets) {
+            ctx.imageSmoothingEnabled = false;
             if (b.homing) {
-                // Enemy homing missile - triangular, red-orange with glow
                 ctx.save();
                 ctx.translate(b.x, b.y);
                 let ang = Math.atan2(b.vy, b.vx) + Math.PI / 2;
                 ctx.rotate(ang);
-                ctx.shadowColor = '#f40';
-                ctx.shadowBlur = 10;
                 ctx.fillStyle = '#f40';
                 ctx.beginPath();
                 ctx.moveTo(0, -7 * scale);
@@ -2473,34 +2600,20 @@
                 ctx.closePath();
                 ctx.fill();
                 ctx.fillStyle = '#ff0';
-                ctx.beginPath();
-                ctx.arc(0, -4 * scale, 1.5 * scale, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
+                ctx.fillRect(-1.5 * scale, -5.5 * scale, 3 * scale, 3 * scale);
                 ctx.restore();
             } else if (b.cluster) {
-                // Cluster bomb - orange square
-                ctx.shadowColor = '#f80';
-                ctx.shadowBlur = 6;
                 ctx.fillStyle = '#f80';
                 ctx.save();
                 ctx.translate(b.x, b.y);
                 ctx.rotate(frameCount * 0.1);
                 ctx.fillRect(-3 * scale, -3 * scale, 6 * scale, 6 * scale);
                 ctx.restore();
-                ctx.shadowBlur = 0;
             } else {
-                ctx.shadowColor = '#f44';
-                ctx.shadowBlur = 5;
                 ctx.fillStyle = '#f44';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 3.5 * scale, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(b.x - 3.5 * scale, b.y - 3.5 * scale, 7 * scale, 7 * scale);
                 ctx.fillStyle = '#faa';
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 1.5 * scale, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
+                ctx.fillRect(b.x - 1.5 * scale, b.y - 1.5 * scale, 3 * scale, 3 * scale);
             }
         }
 
@@ -2721,9 +2834,30 @@
         if (keys[' ']) fire();
     }, 16);
 
-    document.getElementById('startBtn').addEventListener('click', startGame);
-    document.getElementById('startBtn').addEventListener('touchend', function(e) { e.preventDefault(); startGame(); });
-    document.getElementById('restartBtn').addEventListener('click', startGame);
+    function handleStartClick(e) {
+        if (e) e.preventDefault();
+
+        // Ensure audio context is started on user gesture
+        Sound.resume();
+
+        const coinAnim = document.getElementById('coinAnim');
+        if (coinAnim && !coinAnim.classList.contains('drop')) {
+            Sound.coinInsert();
+            coinAnim.classList.add('drop');
+            setTimeout(() => {
+                coinAnim.classList.remove('drop');
+                startGame();
+            }, 800); // Wait for animation
+        } else if (!coinAnim) {
+            startGame();
+        }
+    }
+
+    document.getElementById('startBtn').addEventListener('click', handleStartClick);
+    document.getElementById('startBtn').addEventListener('touchend', handleStartClick);
+
+    // For restart button, just start the game directly
+    document.getElementById('restartBtn').addEventListener('click', function(e) { e.preventDefault(); startGame(); });
     document.getElementById('restartBtn').addEventListener('touchend', function(e) { e.preventDefault(); startGame(); });
 
     document.getElementById('muteBtn').addEventListener('click', function() { Sound.toggleMute(); });
