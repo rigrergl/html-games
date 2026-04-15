@@ -257,7 +257,7 @@
             if (keys.ArrowLeft) playerX = playerX - dx;
             else if (keys.ArrowRight) playerX = playerX + dx;
 
-            playerX = playerX - (dx * speedPercent * playerSegment.curve * 3);
+            playerX = playerX - (dx * speedPercent * playerSegment.curve * 0.5);
 
             if (keys.ArrowUp) speed = speed + accel * dt;
             else if (keys.ArrowDown) speed = speed + braking * dt;
@@ -295,10 +295,9 @@
             let baseSegment = findSegment(position);
             let basePercent = (position % segmentLength) / segmentLength;
             let playerY = baseSegment.p1.world.y + (baseSegment.p2.world.y - baseSegment.p1.world.y) * basePercent;
-            let maxY = height;
-
             let x = 0;
             let dx = - (baseSegment.curve * basePercent);
+            let renderSegments = [];
 
             for (let n = 0; n < drawDistance; n++) {
                 let segment = segments[(baseSegment.index + n) % segments.length];
@@ -314,7 +313,13 @@
                 x = x + dx;
                 dx = dx + segment.curve;
 
-                if ((segment.p1.camera.z <= cameraDepth) || (segment.p2.screen.y >= maxY) || (segment.p2.screen.y >= segment.p1.screen.y)) {
+                renderSegments.push(segment);
+            }
+
+            for (let n = drawDistance - 1; n >= 0; n--) {
+                let segment = renderSegments[n];
+
+                if (segment.p1.camera.z <= cameraDepth) {
                     continue;
                 }
 
@@ -359,8 +364,6 @@
                         lanex2 += laneW2;
                     }
                 }
-
-                maxY = segment.p1.screen.y;
             }
 
             drawCar();
