@@ -25,8 +25,8 @@ Detailed documentation lives in `instructions/`. Key files:
 ## Game Format (Quick Reference)
 
 - **One folder per game:** `games/game-name/` containing `game-name.html` + `README.md` + `screenshot.png`
-- **Everything inline:** CSS in `<style>`, JS in `<script>`, no external deps
-- **Vanilla only:** No libraries, no CDNs, no frameworks
+- **Everything inline:** Generally aim for CSS in `<style>`, JS in `<script>`, avoiding external dependencies where possible.
+- **Philosophy of Simplicity (YAGNI):** While the strong preference is for **vanilla only** (no libraries, no frameworks), this is not an absolute rule. The true goal is simplicity. If bringing in a specific dependency (e.g., Tone.js for complex audio) prevents reinventing the wheel and keeps the codebase simpler overall, it is acceptable. Evaluate this on a case-by-case basis.
 - **Self-contained:** Must work when opened directly in a browser
 - **Responsive:** Must work on both desktop and mobile
 
