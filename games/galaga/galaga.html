@@ -2788,14 +2788,14 @@
 
     // ----- TOUCH CONTROLS -----
     let activeTouchId = null;
-    let touchOffsetX = 0;
+    let lastTouchX = 0;
 
     touchZone.addEventListener('touchstart', function(e) {
         e.preventDefault();
         if (!gameRunning) return;
         const t = e.changedTouches[0];
         activeTouchId = t.identifier;
-        touchOffsetX = player.x - t.clientX;
+        lastTouchX = t.clientX;
     }, { passive: false });
 
     touchZone.addEventListener('touchmove', function(e) {
@@ -2804,9 +2804,10 @@
         for (let i = 0; i < e.changedTouches.length; i++) {
             const t = e.changedTouches[i];
             if (t.identifier === activeTouchId) {
-                let newX = t.clientX + touchOffsetX;
-                newX = Math.max(player.w * 0.5, Math.min(W - player.w * 0.5, newX));
-                player.x = newX;
+                let deltaX = t.clientX - lastTouchX;
+                lastTouchX = t.clientX;
+                player.x += deltaX;
+                player.x = Math.max(player.w * 0.5, Math.min(W - player.w * 0.5, player.x));
             }
         }
     }, { passive: false });
