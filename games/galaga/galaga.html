@@ -261,6 +261,44 @@
             height: 45%;
             z-index: 4;
         }
+
+        #debugPanel {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 8px) + 60px);
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #0f0;
+            border-radius: 5px;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            z-index: 20;
+            color: #ff0;
+            font-size: 10px;
+            pointer-events: auto;
+        }
+
+        #debugPanel button {
+            background: #222;
+            color: #0f0;
+            border: 1px solid #0f0;
+            border-radius: 3px;
+            padding: 5px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
+            cursor: pointer;
+        }
+
+        #debugPanel button:active {
+            background: #0f0;
+            color: #000;
+        }
+
+        #debugPowerName {
+            min-width: 120px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -275,6 +313,13 @@
         <span id="muteBtn">♫</span>
     </div>
     <div id="powerUpHud" aria-hidden="true"></div>
+
+    <div id="debugPanel" style="display: none;">
+        <button id="debugPrev">&lt;</button>
+        <span id="debugPowerName"></span>
+        <button id="debugNext">&gt;</button>
+        <button id="debugUse">USE</button>
+    </div>
 
     <div id="touchZone"></div>
 
@@ -2895,6 +2940,52 @@
     document.addEventListener('touchmove', function(e) {
         if (e.target === document.body || e.target === document.documentElement) e.preventDefault();
     }, { passive: false });
+
+    // --- DEBUG POWER-UPS UI ---
+    if (new URLSearchParams(window.location.search).has('debug')) {
+        const debugPanel = document.getElementById('debugPanel');
+        const btnPrev = document.getElementById('debugPrev');
+        const btnNext = document.getElementById('debugNext');
+        const btnUse = document.getElementById('debugUse');
+        const lblName = document.getElementById('debugPowerName');
+
+        debugPanel.style.display = 'flex';
+
+        let debugPowerIndex = 0;
+        lblName.textContent = POWERUP_TYPES[debugPowerIndex].label;
+
+        function updateDebugUI() {
+            lblName.textContent = POWERUP_TYPES[debugPowerIndex].label;
+            lblName.style.color = POWERUP_TYPES[debugPowerIndex].color;
+        }
+
+        function cycleDebugPower(delta, e) {
+            e.preventDefault();
+            e.stopPropagation();
+            debugPowerIndex = (debugPowerIndex + delta + POWERUP_TYPES.length) % POWERUP_TYPES.length;
+            updateDebugUI();
+        }
+
+        btnPrev.addEventListener('click', e => cycleDebugPower(-1, e));
+        btnPrev.addEventListener('touchstart', e => cycleDebugPower(-1, e), { passive: false });
+
+        btnNext.addEventListener('click', e => cycleDebugPower(1, e));
+        btnNext.addEventListener('touchstart', e => cycleDebugPower(1, e), { passive: false });
+
+        function useDebugPower(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (gameRunning && lives > 0) {
+                let p = POWERUP_TYPES[debugPowerIndex];
+                activatePowerUp(p.id, p.label, p.color);
+            }
+        }
+
+        btnUse.addEventListener('click', useDebugPower);
+        btnUse.addEventListener('touchstart', useDebugPower, { passive: false });
+
+        updateDebugUI();
+    }
 
     draw();
 
