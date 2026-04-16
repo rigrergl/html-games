@@ -36,7 +36,7 @@
         }
 
         canvas {
-            background-color: #95a5a6;
+            background-color: #2ecc71;
             border: 4px solid #34495e;
             border-radius: 8px;
             image-rendering: pixelated; /* Ensure crisp pixels */
@@ -323,8 +323,14 @@
                  catEntity.frame = 0;
                  // Random wander
                  if (catEntity.stateTime > 3 && Math.random() < 0.02) {
-                     catEntity.targetX = Math.max(50, Math.min(canvas.width - 50, catEntity.x + (Math.random() - 0.5) * 200));
-                     catEntity.targetY = Math.max(50, Math.min(canvas.height - 50, catEntity.y + (Math.random() - 0.5) * 100));
+                     if (Math.random() < 0.2) {
+                         // Go to cat tower
+                         catEntity.targetX = 450 + (Math.random() - 0.5) * 40; // near the platforms
+                         catEntity.targetY = 145; // resting near platforms
+                     } else {
+                         catEntity.targetX = Math.max(50, Math.min(canvas.width - 50, catEntity.x + (Math.random() - 0.5) * 200));
+                         catEntity.targetY = Math.max(50, Math.min(canvas.height - 50, catEntity.y + (Math.random() - 0.5) * 100));
+                     }
                      catEntity.state = 'walking';
                      catEntity.stateTime = 0;
                  }
@@ -381,8 +387,50 @@
 
         function draw() {
             // Clear canvas
-            ctx.fillStyle = '#95a5a6';
+            ctx.fillStyle = '#2ecc71';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw some grass
+            ctx.fillStyle = '#27ae60';
+            for (let i = 0; i < 50; i++) {
+                // simple seeded-like random positions so they don't flicker
+                // we can just use a pseudo-random trick based on i
+                let gx = (i * 137) % canvas.width;
+                let gy = (i * 93) % canvas.height;
+                ctx.fillRect(gx, gy, 2, 8);
+                ctx.fillRect(gx + 2, gy + 2, 2, 6);
+            }
+
+            // Draw Cat Tower (x=450, y=150)
+            ctx.save();
+            ctx.translate(450, 150);
+
+            // Base
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fillRect(-40, 60, 80, 10);
+
+            // Posts
+            ctx.fillStyle = '#d35400'; // scratch post brown
+            ctx.fillRect(-25, 0, 10, 60);
+            ctx.fillRect(15, -40, 10, 100);
+
+            // Platforms
+            ctx.fillStyle = '#ecf0f1';
+            ctx.fillRect(-40, 0, 50, 10); // lower platform
+            ctx.fillRect(0, -40, 50, 10); // upper platform
+
+            // Little hanging toy
+            ctx.beginPath();
+            ctx.moveTo(40, -30);
+            ctx.lineTo(40, -10);
+            ctx.strokeStyle = 'white';
+            ctx.stroke();
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(40, -8, 4, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.restore();
 
             if (!currentSaveId) {
                 ctx.fillStyle = 'white';
@@ -423,7 +471,7 @@
             if (interactionActive && currentTool === 'brush') {
                 // Draw pixel brush cursor
                 ctx.save();
-                ctx.translate(mouseX - 30, mouseY - 40);
+                ctx.translate(mouseX - 50, mouseY - 60);
                 const bp = 3; // brush pixel size
 
                 // Brush handle
@@ -455,8 +503,8 @@
                 ctx.arc(mouseX, mouseY, 8, 0, Math.PI*2);
                 ctx.fill();
             } else if (interactionActive && currentTool === 'dangly') {
-                const tx = mouseX - 30;
-                const ty = mouseY - 40;
+                const tx = mouseX - 50;
+                const ty = mouseY - 60;
 
                 // Draw string
                 ctx.beginPath();
@@ -762,8 +810,8 @@
             const overCat = Math.abs(mouseX - catEntity.x) < 40 && Math.abs(mouseY - catEntity.y) < 30;
 
             if (currentTool === 'brush') {
-                const brushX = mouseX - 30;
-                const brushY = mouseY - 40;
+                const brushX = mouseX - 50;
+                const brushY = mouseY - 60;
                 const brushOverCat = Math.abs(brushX - catEntity.x) < 40 && Math.abs(brushY - catEntity.y) < 30;
 
                 if (interactionActive && brushOverCat) {
@@ -790,8 +838,8 @@
                 }
             } else if (currentTool === 'dangly') {
                 if (interactionActive) {
-                     const danglyX = mouseX - 30;
-                     const danglyY = mouseY - 40;
+                     const danglyX = mouseX - 50;
+                     const danglyY = mouseY - 60;
 
                      // Cat bats at it if close
                      const dist = Math.sqrt(Math.pow(danglyX - catEntity.x, 2) + Math.pow(danglyY - catEntity.y, 2));
