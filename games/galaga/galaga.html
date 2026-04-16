@@ -1204,6 +1204,9 @@
         if (currentPowerUp && currentPowerUp !== 'shield') {
             powerUpTimer--;
             if (powerUpTimer <= 0) {
+                if (currentPowerUp === 'gravity') {
+                    invincibleTimer = 90; // 1.5 seconds of invincibility
+                }
                 if (supernovaActive) supernovaActive = false;
                 currentPowerUp = null;
                 powerUpHud.style.opacity = '0';
@@ -1554,7 +1557,7 @@
                 let dx = player.x - eb.x;
                 let dy = player.y - eb.y;
                 let dist = Math.sqrt(dx * dx + dy * dy);
-                let pullStrength = 4.5 * scale;
+                let pullStrength = 15 * scale;
                 if (dist > 1) {
                     eb.vx = (eb.vx || 0) + (dx / dist) * pullStrength * 0.12;
                     eb.vy += (dy / dist) * pullStrength * 0.12;
@@ -1562,7 +1565,7 @@
                     eb.vy *= 0.94;
                 }
                 // Destroy bullets that reach the vortex center
-                if (dist < 35 * scale) {
+                if (dist < 60 * scale) {
                     spawnParticles(eb.x, eb.y, '#fa0', 4, 3);
                     enemyBullets.splice(i, 1);
                 }
@@ -1749,7 +1752,7 @@
         for (let i = vortexBeams.length - 1; i >= 0; i--) {
             let vb = vortexBeams[i];
             vb.angle += 0.08;
-            vb.length = Math.min(vb.length + 8 * scale, H * 0.8);
+            vb.length = Math.min(vb.length + 20 * scale, H * 1.5);
             vb.life--;
             // Damage enemies along the beam
             let bx = player.x, by = player.y;
@@ -2070,6 +2073,12 @@
                 }
             }
         } else if (currentPowerUp === 'gravity') {
+            // Main gun stays active
+            bullets.push({
+                x: player.x,
+                y: player.y - player.h * 0.5,
+                vy: -8 * scale
+            });
             // Shoot upward and downward simultaneously
             bullets.push({
                 x: player.x,
@@ -2147,6 +2156,12 @@
                 vy: -8 * scale
             });
         } else if (currentPowerUp === 'vortex') {
+            // Main gun stays active
+            bullets.push({
+                x: player.x,
+                y: player.y - player.h * 0.5,
+                vy: -8 * scale
+            });
             // Spinning beam of death
             if (vortexBeams.length === 0) {
                 vortexBeams.push({
