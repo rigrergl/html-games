@@ -32,18 +32,22 @@ Detailed documentation lives in `instructions/`. Key files:
 
 ## Workflow
 
-1. **Build** the game as `games/game-name/game-name.html`
+1. **Build** the game as `games/game-name/game-name.html`.
 2. **Test** it yourself natively:
    - Start an HTTP server (`python -m http.server 8000 &`) if not already running.
+   - **MANDATORY:** Use the `.scratch/` directory for all temporary test scripts, debug screenshots, and video recordings. Never create these in the project root.
    - Use Python Playwright (`playwright.sync_api`) to navigate to `http://localhost:8000/games/game-name/game-name.html`.
-   - Take a screenshot and capture video to verify rendering and gameplay → save screenshot as `games/game-name/screenshot.png`.
-   - Interact with the game using Playwright to verify mechanics.
-   - You can also write scripts to evaluate JS, inspect the DOM, check network requests, and read console messages for debugging.
-3. **Write** `games/game-name/README.md` with title, screenshot, description, and the **main-branch** preview link (which will be active after merge).
+   - Take a final screenshot to verify rendering and gameplay → save screenshot as `games/game-name/screenshot.png`.
+   - Interact with the game using Playwright to verify mechanics and check console logs.
+3. **Write** `games/game-name/README.md` with title, screenshot, description, and the **main-branch** preview link.
 4. **Commit and push** to your working branch.
-5. **Create a Pull Request (PR)** and include the **feature-branch preview link** in the PR description so the user can test the game before merging. Also, **deliver** this link to the user in the chat:
-   ```
-   https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/{BRANCH}/games/game-name/game-name.html
+5. **Create a Pull Request (PR)** and include the **feature-branch preview link** in the PR description. **Assemble it dynamically:**
+   ```bash
+   # Get dynamic components for the preview link
+   REPO_URL=$(git remote get-url origin | sed 's/\.git$//')
+   BRANCH_NAME=$(gh pr view --json headRefName -jq .headRefName)
+   # Assemble link
+   PREVIEW_URL="https://htmlpreview.github.io/?${REPO_URL}/blob/${BRANCH_NAME}/games/game-name/game-name.html"
    ```
 
 ## Debugging Quick Reference

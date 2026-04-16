@@ -62,17 +62,21 @@ Detailed documentation lives in `instructions/`. Key files:
 
 ## Workflow
 
-1. **Build** the game as `games/game-name/game-name.html`
-2. **Test** it yourself using the MCP servers:
-   - Navigate to `http://localhost:8080/games/game-name/game-name.html` via Playwright MCP
-   - Take a screenshot to verify rendering → save as `games/game-name/screenshot.png`
-   - Interact with the game to verify mechanics
-   - Check console for JS errors
-3. **Write** `games/game-name/README.md` with title, screenshot, main-branch preview link, description
-4. **Commit and push** to your working branch
-5. **Deliver** the feature-branch preview link to the user:
-   ```
-   https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/{BRANCH}/games/game-name/game-name.html
+1. **Build** the game as `games/game-name/game-name.html`.
+2. **Test** it yourself using the MCP servers or native Playwright:
+   - **MANDATORY:** Use the `.scratch/` directory for all temporary test scripts, debug screenshots, and video recordings. Never create these in the project root.
+   - Navigate to `http://localhost:8080/games/game-name/game-name.html` via Playwright MCP or native script.
+   - Take a final screenshot to verify rendering → save as `games/game-name/screenshot.png`.
+   - Interact with the game to verify mechanics and check for JS errors.
+3. **Write** `games/game-name/README.md` with title, screenshot, and the main-branch preview link.
+4. **Commit and push** to your working branch.
+5. **Deliver** the feature-branch preview link to the user. **Assemble it dynamically:**
+   ```bash
+   # Get dynamic components for the preview link
+   REPO_URL=$(git remote get-url origin | sed 's/\.git$//')
+   BRANCH_NAME=$(gh pr view --json headRefName -jq .headRefName)
+   # Assemble link
+   PREVIEW_URL="https://htmlpreview.github.io/?${REPO_URL}/blob/${BRANCH_NAME}/games/game-name/game-name.html"
    ```
 
 ## MCP Tools Quick Reference

@@ -1,2 +1,9 @@
 # Playwright MCP testing artifacts
 .playwright-mcp/
+
+# Scratch area for temporary scripts and artifacts
+.scratch/
+
+# Root-level video recordings
+/*.webm
+/*.mp4

@@ -1,19 +1,14 @@
 # Testing Workflow
 
-Before delivering a game to the user, **always test it yourself** using the MCP servers.
+Before delivering a game to the user, **always test it yourself**.
 
-## Prerequisites
+## Dedicated Scratch Space
 
-Ensure Chrome and HTTP server are running (setup hook does this automatically):
-```bash
-# Verify Chrome CDP is running
-curl -s http://localhost:9222/json/version
+**Never create temporary scripts, screenshots, or videos in the project root.** Use the `.scratch/` directory for all intermediate work. This directory is gitignored to keep the repository clean.
 
-# Verify HTTP server is serving files
-curl -s http://localhost:8080/
-```
-
-If either is down, run: `./.claude/hooks/setup-environment.sh`
+- **Temporary test scripts:** `.scratch/test-game.py`, `.scratch/check-logic.js`
+- **Temporary screenshots/videos:** `.scratch/debug-1.png`, `.scratch/gameplay.webm`
+- **Logs/Output:** `.scratch/output.txt`
 
 ## Step-by-Step Testing Process
 
@@ -21,51 +16,41 @@ If either is down, run: `./.claude/hooks/setup-environment.sh`
 
 Write the HTML file in the game's subfolder:
 ```
-/home/user/html-games/games/game-name/game-name.html
+games/game-name/game-name.html
 ```
 
-### 2. Open it with Playwright MCP
+### 2. Create a test script in .scratch/
 
-Use `browser_navigate` to open the game via the local HTTP server:
+Do not create test files in the root. Use `.scratch/`:
+```bash
+# Example: Create a playwright test script
+touch .scratch/test_game_v1.py
+```
+
+### 3. Open it with Playwright
+
+Use `browser_navigate` (for MCP) or `page.goto` (for native scripts) to open the game via the local HTTP server:
 ```
 http://localhost:8080/games/game-name/game-name.html
 ```
 
-**Important:** Use `http://localhost:8080/` URLs, not `file://` paths.
+**Important:** Use `http://localhost:8080/` (or port 8000) URLs, not `file://` paths.
 
-### 3. Take a screenshot
+### 4. Capture debug artifacts in .scratch/
 
-Use `browser_take_screenshot` to visually verify:
-- The game renders correctly
-- Layout looks right
-- No obvious visual bugs
-
-### 4. Check the accessibility snapshot
-
-Use `browser_snapshot` to get a text representation of the page. This shows:
-- Element structure and hierarchy
-- Button labels and text content
-- Element refs for interaction
-
-### 5. Test interactivity
-
-Use `browser_click` (with refs from snapshot), `browser_press_key`, and `browser_type` to:
-- Start the game
-- Play a few moves/actions
-- Verify game mechanics work
-
-### 6. Check for errors
-
-Use `browser_console_messages` to check for JavaScript errors.
-
-Or use `browser_evaluate` to run JS in the page:
-```javascript
-document.querySelectorAll('canvas').length  // verify canvas exists
+Save temporary screenshots, videos, or logs to `.scratch/` while you are debugging.
+```python
+# In your test script:
+page.screenshot(path=".scratch/temp_visual_check.png")
 ```
 
-### 7. Test responsiveness on multiple viewports
+### 5. Check for errors
 
-Games **MUST** be responsive. Use `browser_resize` (Playwright MCP) or `mcp__chrome-devtools__emulate` to test at multiple screen sizes:
+Check for JavaScript errors in the console.
+
+### 6. Test responsiveness
+
+Games **MUST** be responsive. Test at multiple screen sizes:
 
 ```
 Mobile portrait:  375 × 667   (iPhone SE)
@@ -74,28 +59,18 @@ Tablet:           768 × 1024
 Desktop:          1280 × 800
 ```
 
-For each viewport:
-- Take a screenshot to verify layout doesn't break
-- Verify on-screen touch controls appear and are tappable on mobile sizes
-- Verify text/UI elements don't overflow or get clipped
-- Verify the game canvas/play area scales correctly
-
-Example using Playwright MCP:
-```
-browser_resize({ width: 375, height: 667 })   # mobile
-browser_take_screenshot()
-browser_resize({ width: 1280, height: 800 })  # desktop
-browser_take_screenshot()
-```
-
-### 8. Take a final screenshot
+### 7. Take a final screenshot
 
 Capture the game in an active state (desktop viewport) to confirm everything works.
 
 Save it as `screenshot.png` in the game's folder — it will be used in the README:
 ```
-/home/user/html-games/games/game-name/screenshot.png
+games/game-name/screenshot.png
 ```
+
+### 8. Clean up .scratch/
+
+When your task is complete, delete the contents of `.scratch/` to leave the environment ready for the next task.
 
 ## Common Issues
 
