@@ -2801,10 +2801,12 @@
     touchZone.addEventListener('touchmove', function(e) {
         e.preventDefault();
         if (!gameRunning) return;
+        const rect = touchZone.getBoundingClientRect();
+        const scaleX = W / rect.width;
         for (let i = 0; i < e.changedTouches.length; i++) {
             const t = e.changedTouches[i];
             if (t.identifier === activeTouchId) {
-                let deltaX = t.clientX - lastTouchX;
+                let deltaX = (t.clientX - lastTouchX) * scaleX;
                 lastTouchX = t.clientX;
                 player.x += deltaX;
                 player.x = Math.max(player.w * 0.5, Math.min(W - player.w * 0.5, player.x));
