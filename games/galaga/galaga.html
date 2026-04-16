@@ -1536,8 +1536,9 @@
             // Hit enemies
             for (let e of enemies) {
                 if (!e.alive || bm.hit.has(e)) continue;
-                if (Math.abs(bm.x - e.x) < e.w * 0.6 + 10 * scale && Math.abs(bm.y - e.y) < e.h * 0.6 + 10 * scale) {
+                if (Math.abs(bm.x - e.x) < e.w * 0.6 + 25 * scale && Math.abs(bm.y - e.y) < e.h * 0.6 + 25 * scale) {
                     bm.hit.add(e);
+                    e.hp -= 4; // bonus damage
                     hitEnemy(e);
                     spawnParticles(e.x, e.y, '#f55', 6, 3);
                 }
@@ -1768,8 +1769,8 @@
                 let dx = beamEndX - bx, dy = beamEndY - by;
                 let t = Math.max(0, Math.min(1, ((e.x - bx) * dx + (e.y - by) * dy) / (dx * dx + dy * dy)));
                 let closestX = bx + t * dx, closestY = by + t * dy;
-                if (Math.hypot(e.x - closestX, e.y - closestY) < 25 * scale) {
-                    if (frameCount % 6 === 0) hitEnemy(e);
+                if (Math.hypot(e.x - closestX, e.y - closestY) < 45 * scale) {
+                    if (frameCount % 2 === 0) hitEnemy(e);
                 }
             }
             if (vb.life <= 0) vortexBeams.splice(i, 1);
@@ -2021,17 +2022,19 @@
                 y: player.y - player.h * 0.5,
                 vy: -8 * scale
             });
-            // Fire a boomerang that curves out and comes back
-            boomerangs.push({
-                x: player.x,
-                y: player.y - player.h * 0.5,
-                startX: player.x,
-                startY: player.y,
-                t: 0,
-                dir: (Math.random() < 0.5) ? -1 : 1,
-                hit: new Set(),
-                clearedHit: false
-            });
+            // Fire two boomerangs that curve out and come back
+            for (let dir of [-1, 1]) {
+                boomerangs.push({
+                    x: player.x,
+                    y: player.y - player.h * 0.5,
+                    startX: player.x,
+                    startY: player.y,
+                    t: 0,
+                    dir: dir,
+                    hit: new Set(),
+                    clearedHit: false
+                });
+            }
         } else if (currentPowerUp === 'drunk') {
             // Fire wobbly zigzag bullets
             for (let i = 0; i < 3; i++) {
@@ -2179,10 +2182,15 @@
                 y: player.y - player.h * 0.5,
                 vy: -8 * scale
             });
-            // Spinning beam of death
+            // Spinning beam of death (two beams)
             if (vortexBeams.length === 0) {
                 vortexBeams.push({
                     angle: -Math.PI / 2,
+                    length: 20 * scale,
+                    life: 90
+                });
+                vortexBeams.push({
+                    angle: Math.PI / 2,
                     length: 20 * scale,
                     life: 90
                 });
