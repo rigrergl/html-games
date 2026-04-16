@@ -1525,10 +1525,14 @@
         for (let i = boomerangs.length - 1; i >= 0; i--) {
             let bm = boomerangs[i];
             bm.t += 0.02;
+            if (bm.t >= 0.5 && !bm.clearedHit) {
+                bm.hit.clear();
+                bm.clearedHit = true;
+            }
             // Elliptical path
-            let range = 180 * scale;
+            let range = 250 * scale;
             bm.x = bm.startX + Math.sin(bm.t * Math.PI) * range * bm.dir;
-            bm.y = bm.startY - Math.sin(bm.t * Math.PI) * range * 1.2;
+            bm.y = bm.startY - Math.sin(bm.t * Math.PI) * range * 1.5;
             // Hit enemies
             for (let e of enemies) {
                 if (!e.alive || bm.hit.has(e)) continue;
@@ -2011,6 +2015,12 @@
                 deployed: false
             });
         } else if (currentPowerUp === 'boomerang') {
+            // Main gun stays active
+            bullets.push({
+                x: player.x,
+                y: player.y - player.h * 0.5,
+                vy: -8 * scale
+            });
             // Fire a boomerang that curves out and comes back
             boomerangs.push({
                 x: player.x,
@@ -2019,7 +2029,8 @@
                 startY: player.y,
                 t: 0,
                 dir: (Math.random() < 0.5) ? -1 : 1,
-                hit: new Set()
+                hit: new Set(),
+                clearedHit: false
             });
         } else if (currentPowerUp === 'drunk') {
             // Fire wobbly zigzag bullets
@@ -2109,6 +2120,12 @@
                 vy: -Math.cos(spread) * 10 * scale
             });
         } else if (currentPowerUp === 'plasma') {
+            // Main gun stays active
+            bullets.push({
+                x: player.x,
+                y: player.y - player.h * 0.5,
+                vy: -8 * scale
+            });
             // Expanding plasma wave ring from player
             plasmaWaves.push({
                 x: player.x,
@@ -2403,16 +2420,23 @@
             ctx.save();
             ctx.translate(bm.x, bm.y);
             ctx.rotate(bm.t * Math.PI * 6); // spinning
-            ctx.fillStyle = '#f55';
+            ctx.lineWidth = 3 * scale;
+            ctx.lineJoin = 'miter';
+            ctx.miterLimit = 2;
+
+            // Draw main blue body
+            ctx.fillStyle = '#2980b9'; // Sokka blue
+            ctx.strokeStyle = '#ffffff'; // White edge
             ctx.beginPath();
-            ctx.moveTo(0, -10 * scale);
-            ctx.quadraticCurveTo(12 * scale, 0, 0, 4 * scale);
-            ctx.quadraticCurveTo(-12 * scale, 0, 0, -10 * scale);
+            ctx.moveTo(0, 0); // Inner vertex
+            ctx.lineTo(-15 * scale, -10 * scale); // Left wing tip
+            ctx.lineTo(-12 * scale, -14 * scale); // Left wing outer edge
+            ctx.lineTo(0, -6 * scale); // Outer vertex
+            ctx.lineTo(12 * scale, -14 * scale); // Right wing outer edge
+            ctx.lineTo(15 * scale, -10 * scale); // Right wing tip
+            ctx.closePath();
             ctx.fill();
-            ctx.fillStyle = '#faa';
-            ctx.beginPath();
-            ctx.arc(0, -3 * scale, 2 * scale, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.stroke();
             ctx.restore();
         }
 
