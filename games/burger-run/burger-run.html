@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Burger Run</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #87CEEB; /* Sky blue */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 800px;
+            max-height: 600px;
+            background-color: #a0d8ef; /* Slightly lighter sky */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 4 / 3; /* Standard aspect ratio for old games */
+            image-rendering: pixelated; /* Essential for pixel art style */
+            background-color: transparent;
+        }
+
+        /* Touch Controls for Mobile */
+        #touch-controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: none; /* Hidden by default on desktop, shown via JS if touch detected */
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none; /* Let touches pass through to canvas if not on buttons */
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            pointer-events: auto; /* Buttons catch touches */
+        }
+
+        .touch-btn {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #333;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .touch-btn:active {
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        #game-over-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+
+        #game-over-layer h1 {
+            font-size: 48px;
+            text-shadow: 3px 3px 0 #d92525;
+            margin-bottom: 20px;
+        }
+
+        #restart-btn {
+            padding: 10px 20px;
+            font-size: 24px;
+            font-family: inherit;
+            background-color: #ffcc00;
+            color: black;
+            border: 4px solid white;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Internal canvas resolution is 400x300, styled to 100% width/auto height -->
+        <canvas id="gameCanvas" width="400" height="300"></canvas>
+
+        <div id="ui-layer">
+            <div>Score: <span id="score">0</span></div>
+            <div>Lives: <span id="lives">3</span></div>
+        </div>
+
+        <div id="touch-controls">
+            <div class="btn-group">
+                <div class="touch-btn" id="btn-left">◀</div>
+                <div class="touch-btn" id="btn-right">▶</div>
+            </div>
+            <div class="btn-group">
+                <div class="touch-btn" id="btn-jump">▲</div>
+            </div>
+        </div>
+
+        <div id="game-over-layer">
+            <h1>GAME OVER</h1>
+            <p>Final Score: <span id="final-score">0</span></p>
+            <button id="restart-btn" style="margin-top:20px;">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const gameOverLayer = document.getElementById('game-over-layer');
+        const finalScoreEl = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+        const touchControls = document.getElementById('touch-controls');
+
+        // Show touch controls if it's a touch device
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            touchControls.style.display = 'flex';
+        }
+
+        // Game Constants
+        const TILE_SIZE = 16;
+        const GRAVITY = 0.25;
+        const FRICTION = 0.8;
+        const MAX_SPEED = 3;
+        const JUMP_FORCE = 6;
+
+        // Game State
+        let gameState = {
+            score: 0,
+            lives: 3,
+            isGameOver: false,
+            cameraX: 0
+        };
+
+        // Player Object
+        const player = {
+            x: 50,
+            y: 100,
+            width: 14,
+            height: 14,
+            vx: 0,
+            vy: 0,
+            isGrounded: false,
+            color: '#f5deb3' // Bun color
+        };
+
+        // Entities arrays
+        let fries = [];
+        let enemies = [];
+
+        // Level Data: 0 = empty, 1 = solid block, 2 = platform, 3 = fry (collectible), 4 = enemy
+        // Width: 100 tiles, Height: 19 tiles (300/16 approx 18.75)
+        const mapRows = 19;
+        const mapCols = 150;
+        let levelMap = [];
+
+        function generateLevel() {
+            levelMap = [];
+            fries = [];
+            enemies = [];
+
+            for (let r = 0; r < mapRows; r++) {
+                let row = [];
+                for (let c = 0; c < mapCols; c++) {
+                    // Ground floor
+                    if (r === mapRows - 1 || r === mapRows - 2) {
+                        row.push(1);
+                    }
+                    // Left wall
+                    else if (c === 0) {
+                        row.push(1);
+                    }
+                    // Random platforms
+                    else if (r > 5 && r < mapRows - 4 && Math.random() < 0.05 && c > 5 && c < mapCols - 5) {
+                        // Generate a short platform
+                        row.push(2);
+                        let platLen = Math.floor(Math.random() * 3) + 2;
+                        for(let i=1; i<platLen; i++) {
+                            c++;
+                            row.push(2);
+                        }
+
+                        // Maybe put a fry on top
+                        if (Math.random() < 0.5) {
+                            fries.push({x: c * TILE_SIZE - TILE_SIZE, y: (r - 1) * TILE_SIZE, width: 8, height: 12, collected: false});
+                        }
+                        // Or an enemy on top
+                        else if (Math.random() < 0.3) {
+                            enemies.push({
+                                x: c * TILE_SIZE - TILE_SIZE,
+                                y: (r - 1) * TILE_SIZE + 4, // slightly smaller than tile
+                                width: 12,
+                                height: 12,
+                                vx: (Math.random() > 0.5 ? -0.5 : 0.5),
+                                type: 'broccoli',
+                                isDead: false
+                            });
+                        }
+
+                    } else {
+                        row.push(0);
+                    }
+                }
+                levelMap.push(row);
+            }
+
+            // Scatter some fries on the ground
+            for (let c = 10; c < mapCols - 10; c += 15) {
+                if (Math.random() < 0.7) {
+                    fries.push({x: c * TILE_SIZE, y: (mapRows - 3) * TILE_SIZE + 4, width: 8, height: 12, collected: false});
+                }
+                if (Math.random() < 0.4) {
+                    enemies.push({
+                        x: (c+5) * TILE_SIZE,
+                        y: (mapRows - 3) * TILE_SIZE + 4,
+                        width: 12,
+                        height: 12,
+                        vx: -0.5,
+                        type: 'broccoli',
+                        isDead: false
+                    });
+                }
+            }
+        }
+
+        generateLevel();
+
+        // Input Handling
+        const keys = {
+            left: false,
+            right: false,
+            up: false
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+            if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+            if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = false;
+        });
+
+        // Touch handling
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const btnJump = document.getElementById('btn-jump');
+
+        const addTouch = (el, key) => {
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+            el.addEventListener('mousedown', (e) => { e.preventDefault(); keys[key] = true; });
+            el.addEventListener('mouseup', (e) => { e.preventDefault(); keys[key] = false; });
+            el.addEventListener('mouseleave', (e) => { e.preventDefault(); keys[key] = false; });
+        };
+
+        addTouch(btnLeft, 'left');
+        addTouch(btnRight, 'right');
+        addTouch(btnJump, 'up');
+
+        restartBtn.addEventListener('click', () => {
+            gameState.score = 0;
+            gameState.lives = 3;
+            gameState.isGameOver = false;
+            scoreEl.innerText = gameState.score;
+            livesEl.innerText = gameState.lives;
+            gameOverLayer.style.display = 'none';
+            player.x = 50;
+            player.y = 100;
+            player.vx = 0;
+            player.vy = 0;
+            gameState.cameraX = 0;
+            generateLevel();
+            requestAnimationFrame(gameLoop);
+        });
+
+        // AABB Collision helper
+        function rectIntersect(r1, r2) {
+            return !(r2.x > r1.x + r1.width ||
+                     r2.x + r2.width < r1.x ||
+                     r2.y > r1.y + r1.height ||
+                     r2.y + r2.height < r1.y);
+        }
+
+        function checkMapCollisions(entity) {
+            let hitX = false;
+            let hitY = false;
+
+            // Broad phase: check tiles near entity
+            const startCol = Math.floor(entity.x / TILE_SIZE);
+            const endCol = Math.floor((entity.x + entity.width) / TILE_SIZE);
+            const startRow = Math.floor(entity.y / TILE_SIZE);
+            const endRow = Math.floor((entity.y + entity.height) / TILE_SIZE);
+
+            for (let r = startRow; r <= endRow; r++) {
+                for (let c = startCol; c <= endCol; c++) {
+                    if (r >= 0 && r < mapRows && c >= 0 && c < mapCols) {
+                        const tile = levelMap[r][c];
+                        if (tile === 1 || tile === 2) {
+                            const tileRect = {x: c * TILE_SIZE, y: r * TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE};
+
+                            // Check Y collision first
+                            const pY = {x: entity.x, y: entity.y + entity.vy, width: entity.width, height: entity.height};
+                            if (rectIntersect(pY, tileRect)) {
+                                if (entity.vy > 0) { // Falling
+                                    entity.y = tileRect.y - entity.height;
+                                    entity.vy = 0;
+                                    entity.isGrounded = true;
+                                } else if (entity.vy < 0) { // Jumping up into block
+                                    entity.y = tileRect.y + tileRect.height;
+                                    entity.vy = 0;
+                                }
+                                hitY = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Then check X collision
+            for (let r = startRow; r <= endRow; r++) {
+                for (let c = startCol; c <= endCol; c++) {
+                    if (r >= 0 && r < mapRows && c >= 0 && c < mapCols) {
+                        const tile = levelMap[r][c];
+                        if (tile === 1 || tile === 2) {
+                            const tileRect = {x: c * TILE_SIZE, y: r * TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE};
+                            const pX = {x: entity.x + entity.vx, y: entity.y, width: entity.width, height: entity.height};
+                            if (rectIntersect(pX, tileRect)) {
+                                if (entity.vx > 0) { // Moving right
+                                    entity.x = tileRect.x - entity.width;
+                                    entity.vx = 0;
+                                } else if (entity.vx < 0) { // Moving left
+                                    entity.x = tileRect.x + tileRect.height;
+                                    entity.vx = 0;
+                                }
+                                hitX = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function die() {
+            gameState.lives--;
+            livesEl.innerText = gameState.lives;
+            if (gameState.lives <= 0) {
+                gameState.isGameOver = true;
+                gameOverLayer.style.display = 'flex';
+                finalScoreEl.innerText = gameState.score;
+            } else {
+                // Respawn slightly before current pos
+                player.x = Math.max(50, player.x - 100);
+                player.y = 50;
+                player.vx = 0;
+                player.vy = 0;
+            }
+        }
+
+        function update() {
+            if (gameState.isGameOver) return;
+
+            // Player Physics
+            if (keys.left) {
+                player.vx -= 0.5;
+            } else if (keys.right) {
+                player.vx += 0.5;
+            }
+
+            // Friction & Speed limits
+            player.vx *= FRICTION;
+            if (Math.abs(player.vx) > MAX_SPEED) {
+                player.vx = Math.sign(player.vx) * MAX_SPEED;
+            }
+
+            // Gravity
+            player.vy += GRAVITY;
+
+            // Jump
+            if (keys.up && player.isGrounded) {
+                player.vy = -JUMP_FORCE;
+                player.isGrounded = false;
+            }
+
+            // Reset grounded state before checking
+            player.isGrounded = false;
+
+            checkMapCollisions(player);
+
+            // Apply movement
+            player.x += player.vx;
+            player.y += player.vy;
+
+            // Fall off bottom
+            if (player.y > canvas.height + 50) {
+                die();
+            }
+
+            // Camera follow
+            let targetCameraX = player.x - canvas.width / 3;
+            if (targetCameraX < 0) targetCameraX = 0;
+            // Smooth camera
+            gameState.cameraX += (targetCameraX - gameState.cameraX) * 0.1;
+
+            // Update Fries
+            for (let i = fries.length - 1; i >= 0; i--) {
+                const fry = fries[i];
+                if (!fry.collected && rectIntersect(player, fry)) {
+                    fry.collected = true;
+                    gameState.score += 10;
+                    scoreEl.innerText = gameState.score;
+                    fries.splice(i, 1);
+                }
+            }
+
+            // Update Enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                if (enemy.isDead) continue;
+
+                // Enemy gravity
+                enemy.vy = (enemy.vy || 0) + GRAVITY;
+
+                // Temp save state
+                const oldX = enemy.x;
+                const oldY = enemy.y;
+                const oldVx = enemy.vx;
+                const oldVy = enemy.vy;
+
+                // Hacky reuse of checkMapCollisions, it mutates position if hit
+                enemy.isGrounded = false;
+                checkMapCollisions(enemy);
+
+                if (enemy.vx === 0) { // Hit a wall
+                    enemy.vx = -oldVx; // Turn around
+                } else {
+                    enemy.vx = oldVx; // restore
+                }
+
+                enemy.x += enemy.vx;
+                enemy.y += enemy.vy;
+
+                // Fall off
+                if (enemy.y > canvas.height + 50) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                // Player <-> Enemy collision
+                if (rectIntersect(player, enemy)) {
+                    // Check if player landed on top
+                    if (player.vy > 0 && player.y + player.height < enemy.y + 8) {
+                        enemy.isDead = true;
+                        player.vy = -JUMP_FORCE * 0.7; // Bounce
+                        gameState.score += 20;
+                        scoreEl.innerText = gameState.score;
+                        enemies.splice(i, 1);
+                    } else {
+                        die();
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            // Apply camera transform
+            ctx.translate(-Math.floor(gameState.cameraX), 0);
+
+            // Draw Level
+            const startCol = Math.max(0, Math.floor(gameState.cameraX / TILE_SIZE));
+            const endCol = Math.min(mapCols, startCol + Math.ceil(canvas.width / TILE_SIZE) + 1);
+
+            for (let r = 0; r < mapRows; r++) {
+                for (let c = startCol; c < endCol; c++) {
+                    const tile = levelMap[r][c];
+                    if (tile === 1 || tile === 2) {
+                        // Draw fast-food diner checkerboard floor / platform
+                        if ((r + c) % 2 === 0) {
+                            ctx.fillStyle = '#ffffff';
+                        } else {
+                            ctx.fillStyle = '#ff0000'; // red and white checker
+                        }
+                        ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+
+                        // Border
+                        ctx.strokeStyle = '#990000';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            }
+
+            // Draw Fries
+            ctx.fillStyle = '#ffd700'; // Gold
+            fries.forEach(fry => {
+                if (!fry.collected) {
+                    // Fry cup
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(fry.x, fry.y + 6, fry.width, 6);
+                    // Fries sticking out
+                    ctx.fillStyle = '#ffd700';
+                    ctx.fillRect(fry.x + 1, fry.y, 2, 8);
+                    ctx.fillRect(fry.x + 5, fry.y - 2, 2, 10);
+                }
+            });
+
+            // Draw Enemies (Broccoli)
+            enemies.forEach(enemy => {
+                if (!enemy.isDead) {
+                    // Stalk
+                    ctx.fillStyle = '#8fbc8f';
+                    ctx.fillRect(enemy.x + 4, enemy.y + 6, 4, 6);
+                    // Head
+                    ctx.fillStyle = '#228b22';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + 6, enemy.y + 4, 6, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Angry eyes
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(enemy.x + 2 + (enemy.vx > 0 ? 2 : 0), enemy.y + 2, 2, 2);
+                    ctx.fillRect(enemy.x + 6 + (enemy.vx > 0 ? 2 : 0), enemy.y + 2, 2, 2);
+                }
+            });
+
+            // Draw Player (Burger)
+            ctx.fillStyle = player.color; // Top bun
+            ctx.beginPath();
+            ctx.arc(player.x + 7, player.y + 4, 7, Math.PI, 0);
+            ctx.fill();
+
+            // Lettuce
+            ctx.fillStyle = '#32cd32';
+            ctx.fillRect(player.x, player.y + 4, 14, 2);
+
+            // Patty
+            ctx.fillStyle = '#8b4513';
+            ctx.fillRect(player.x, player.y + 6, 14, 4);
+
+            // Bottom bun
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y + 10, 14, 4);
+
+            // Eyes
+            ctx.fillStyle = '#000';
+            const facingDir = keys.right ? 2 : (keys.left ? -2 : 0);
+            ctx.fillRect(player.x + 3 + facingDir, player.y + 2, 2, 2);
+            ctx.fillRect(player.x + 9 + facingDir, player.y + 2, 2, 2);
+
+            ctx.restore();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if (!gameState.isGameOver) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Start game
+        requestAnimationFrame(gameLoop);
+
+    </script>
+</body>
+</html>
