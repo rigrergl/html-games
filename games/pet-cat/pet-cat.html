@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pet Cat</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+            touch-action: none; /* Prevent scrolling on canvas */
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        #game-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            background-color: #95a5a6;
+            border: 4px solid #34495e;
+            border-radius: 8px;
+            image-rendering: pixelated; /* Ensure crisp pixels */
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            cursor: crosshair;
+        }
+
+        #ui-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+            max-width: 600px;
+            background: #34495e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #2c3e50;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: 0 4px #c0392b;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        button:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 #c0392b;
+        }
+
+        button.selected {
+            background-color: #f1c40f;
+            color: #2c3e50;
+            box-shadow: 0 4px #f39c12;
+        }
+
+        button.selected:active {
+             box-shadow: 0 0 #f39c12;
+        }
+
+        button:disabled {
+            background-color: #7f8c8d;
+            box-shadow: 0 4px #95a5a6;
+            cursor: not-allowed;
+            color: #bdc3c7;
+        }
+
+        #stats {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 10px;
+            padding: 0 10px;
+        }
+
+        #save-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            font-size: 10px;
+        }
+
+        select, input {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            padding: 5px;
+            border: 2px solid #2c3e50;
+            border-radius: 4px;
+        }
+
+        /* Modal Styles */
+        #modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #modal-overlay.hidden {
+            display: none;
+        }
+
+        .modal {
+            background: #34495e;
+            padding: 20px;
+            border-radius: 8px;
+            border: 4px solid #e74c3c;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .modal h2 { margin-top: 0; font-size: 16px; }
+        .modal input, .modal select { margin-bottom: 15px; width: 80%; display: block; margin-left: auto; margin-right: auto;}
+    </style>
+</head>
+<body>
+
+    <h1>Pet Cat</h1>
+
+    <div id="game-container">
+        <!-- Canvas will be dynamically sized in JS to maintain aspect ratio -->
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+    </div>
+
+    <div id="ui-panel">
+        <div id="stats">
+            <span id="cat-name-display">Name: ???</span>
+            <span id="relationship-display">Relationship: 0</span>
+        </div>
+
+        <div class="controls-row">
+            <button id="tool-brush" class="selected">Brush</button>
+            <button id="tool-treat">Treat</button>
+            <button id="tool-dangly" disabled title="Unlock at Rel 50">Dangly Toy</button>
+            <button id="tool-laser" disabled title="Unlock at Rel 150">Laser Pointer</button>
+        </div>
+
+        <div id="save-controls">
+            <select id="save-selector">
+                <!-- Populated by JS -->
+            </select>
+            <button id="btn-new-save">New Save</button>
+        </div>
+    </div>
+
+    <!-- New Save Modal -->
+    <div id="modal-overlay">
+        <div class="modal">
+            <h2>Adopt a New Cat</h2>
+            <input type="text" id="new-cat-name" placeholder="Cat's Name" maxlength="15">
+            <select id="new-cat-type">
+                <option value="orange">Orange Tabby</option>
+                <option value="black">Void (Black)</option>
+                <option value="white">Cloud (White)</option>
+                <option value="tuxedo">Tuxedo</option>
+            </select>
+            <button id="btn-adopt">Adopt!</button>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        const STATE_KEY = 'petCatSaves';
+        let saves = {};
+        let currentSaveId = null;
+
+        let gameState = {
+            name: "???",
+            type: "orange",
+            relationship: 0,
+            unlockedDangly: false,
+            unlockedLaser: false
+        };
+
+        // UI Elements
+        const modalOverlay = document.getElementById('modal-overlay');
+        const newCatNameInput = document.getElementById('new-cat-name');
+        const newCatTypeSelect = document.getElementById('new-cat-type');
+        const btnAdopt = document.getElementById('btn-adopt');
+        const saveSelector = document.getElementById('save-selector');
+        const btnNewSave = document.getElementById('btn-new-save');
+
+        const catNameDisplay = document.getElementById('cat-name-display');
+        const relationshipDisplay = document.getElementById('relationship-display');
+
+        const toolButtons = {
+            brush: document.getElementById('tool-brush'),
+            treat: document.getElementById('tool-treat'),
+            dangly: document.getElementById('tool-dangly'),
+            laser: document.getElementById('tool-laser')
+        };
+
+        let currentTool = 'brush';
+
+        // Graphics and Loop
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const PIXEL_SIZE = 4;
+        let lastTime = 0;
+
+        const catColors = {
+            orange: { base: '#f39c12', dark: '#d35400', light: '#f1c40f', belly: '#ecf0f1' },
+            black: { base: '#2c3e50', dark: '#1a252f', light: '#34495e', belly: '#7f8c8d' },
+            white: { base: '#ecf0f1', dark: '#bdc3c7', light: '#ffffff', belly: '#ffffff' },
+            tuxedo: { base: '#2c3e50', dark: '#1a252f', light: '#ffffff', belly: '#ffffff' }
+        };
+
+        let catEntity = {
+            x: 300,
+            y: 200,
+            targetX: 300,
+            targetY: 200,
+            vx: 0,
+            vy: 0,
+            speed: 100, // px per sec
+            state: 'idle', // idle, walking, eating, purring, chasing
+            stateTime: 0,
+            facingRight: true,
+            frame: 0
+        };
+
+        // Game Objects
+        let treats = [];
+        let mouseX = 0;
+        let mouseY = 0;
+        let interactionActive = false; // Is mouse down/touching?
+
+        // Initialization
+        function init() {
+            loadSaves();
+            setupEventListeners();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Game Loop
+        function gameLoop(timestamp) {
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+
+            if (dt < 0.1) { // Cap dt to avoid large jumps if tab is inactive
+                update(dt);
+                draw();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update(dt) {
+            if (!currentSaveId) return;
+
+            catEntity.stateTime += dt;
+
+            // Cat Logic
+            const dx = catEntity.targetX - catEntity.x;
+            const dy = catEntity.targetY - catEntity.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (catEntity.state === 'walking' || catEntity.state === 'chasing') {
+                if (dist > 5) {
+                    const normX = dx / dist;
+                    const normY = dy / dist;
+                    const currentSpeed = catEntity.state === 'chasing' ? catEntity.speed * 2 : catEntity.speed;
+                    catEntity.x += normX * currentSpeed * dt;
+                    catEntity.y += normY * currentSpeed * dt;
+                    catEntity.facingRight = normX > 0;
+
+                    // Animation
+                    catEntity.frame = Math.floor(catEntity.stateTime * 5) % 2;
+                } else {
+                    catEntity.x = catEntity.targetX;
+                    catEntity.y = catEntity.targetY;
+                    catEntity.state = 'idle';
+                    catEntity.frame = 0;
+                }
+            } else if (catEntity.state === 'idle') {
+                 catEntity.frame = 0;
+                 // Random wander
+                 if (catEntity.stateTime > 3 && Math.random() < 0.02) {
+                     catEntity.targetX = Math.max(50, Math.min(canvas.width - 50, catEntity.x + (Math.random() - 0.5) * 200));
+                     catEntity.targetY = Math.max(50, Math.min(canvas.height - 50, catEntity.y + (Math.random() - 0.5) * 100));
+                     catEntity.state = 'walking';
+                     catEntity.stateTime = 0;
+                 }
+            } else if (catEntity.state === 'purring') {
+                 catEntity.frame = Math.floor(catEntity.stateTime * 4) % 2; // purr wiggle
+            } else if (catEntity.state === 'eating') {
+                 catEntity.frame = Math.floor(catEntity.stateTime * 6) % 2; // eating bop
+                 if (catEntity.stateTime > 2) {
+                     catEntity.state = 'idle';
+                     catEntity.stateTime = 0;
+                 }
+            }
+
+            // Treat logic
+            if (treats.length > 0 && catEntity.state !== 'eating' && catEntity.state !== 'chasing') {
+                const treat = treats[0];
+                catEntity.targetX = treat.x;
+                catEntity.targetY = treat.y;
+                catEntity.state = 'walking';
+
+                const tdx = treat.x - catEntity.x;
+                const tdy = treat.y - catEntity.y;
+                if (Math.sqrt(tdx*tdx + tdy*tdy) < 20) {
+                    treats.shift(); // Eat it
+                    catEntity.state = 'eating';
+                    catEntity.stateTime = 0;
+                    addRelationship(5);
+                }
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#95a5a6';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!currentSaveId) {
+                ctx.fillStyle = 'white';
+                ctx.font = '20px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText("Please Adopt a Cat!", canvas.width/2, canvas.height/2);
+                return;
+            }
+
+            // Draw shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(catEntity.x, catEntity.y + 15, 30, 10, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw treats
+            for (let t of treats) {
+                ctx.fillStyle = '#c0392b';
+                ctx.fillRect(t.x - 4, t.y - 4, 8, 8);
+                ctx.fillStyle = '#f1c40f';
+                ctx.fillRect(t.x - 2, t.y - 2, 4, 4);
+            }
+
+            drawCat();
+
+            // Draw UI Overlays (Toys)
+            if (interactionActive && currentTool === 'laser') {
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(mouseX, mouseY, 4, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,0,0,0.3)';
+                ctx.beginPath();
+                ctx.arc(mouseX, mouseY, 8, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        function drawCat() {
+            ctx.save();
+            ctx.translate(catEntity.x, catEntity.y);
+
+            if (!catEntity.facingRight) {
+                ctx.scale(-1, 1);
+            }
+
+            const colors = catColors[gameState.type];
+            let bopY = 0;
+
+            if (catEntity.state === 'walking' || catEntity.state === 'chasing') {
+                bopY = catEntity.frame === 0 ? -2 : 0;
+            } else if (catEntity.state === 'purring') {
+                bopY = catEntity.frame === 0 ? 1 : 0;
+            } else if (catEntity.state === 'eating') {
+                bopY = catEntity.frame === 0 ? 3 : 0;
+            }
+
+            ctx.translate(0, bopY);
+
+            // Simple blocky cat drawing
+            const p = PIXEL_SIZE;
+
+            // Tail
+            ctx.fillStyle = colors.dark;
+            if (catEntity.state === 'purring' || catEntity.state === 'walking') {
+                ctx.fillRect(-8*p, (catEntity.frame === 0 ? -3 : -4)*p, 2*p, 6*p);
+            } else {
+                ctx.fillRect(-8*p, -3*p, 2*p, 6*p);
+            }
+
+            // Body
+            ctx.fillStyle = colors.base;
+            ctx.fillRect(-6*p, -2*p, 10*p, 6*p);
+
+            // Belly
+            ctx.fillStyle = colors.belly;
+            ctx.fillRect(-4*p, 2*p, 6*p, 2*p);
+
+            // Legs
+            ctx.fillStyle = colors.dark;
+            if (catEntity.state === 'walking' || catEntity.state === 'chasing') {
+                const swing = catEntity.frame === 0 ? 1 : -1;
+                ctx.fillRect(-5*p + swing*p, 4*p, 2*p, 2*p); // Back
+                ctx.fillRect(1*p - swing*p, 4*p, 2*p, 2*p); // Front
+            } else {
+                ctx.fillRect(-5*p, 4*p, 2*p, 2*p);
+                ctx.fillRect(1*p, 4*p, 2*p, 2*p);
+            }
+
+            // Head
+            ctx.fillStyle = colors.base;
+            ctx.fillRect(2*p, -4*p, 6*p, 5*p);
+
+            // Ears
+            ctx.fillStyle = colors.dark;
+            ctx.fillRect(2*p, -6*p, 2*p, 2*p);
+            ctx.fillRect(6*p, -6*p, 2*p, 2*p);
+
+            // Eyes
+            ctx.fillStyle = catEntity.state === 'purring' ? colors.dark : '#000';
+            if (catEntity.state === 'purring') {
+                ctx.fillRect(4*p, -2*p, 2*p, 1*p);
+                ctx.fillRect(7*p, -2*p, 1*p, 1*p);
+            } else {
+                ctx.fillRect(4*p, -2*p, 1*p, 1*p);
+                ctx.fillRect(7*p, -2*p, 1*p, 1*p);
+            }
+
+            // Nose/Mouth
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(6*p, -1*p, 1*p, 1*p);
+
+            ctx.restore();
+        }
+
+        // Save/Load Logic
+        function loadSaves() {
+            const savedData = localStorage.getItem(STATE_KEY);
+            if (savedData) {
+                try {
+                    saves = JSON.parse(savedData);
+                } catch (e) {
+                    console.error("Failed to parse saves", e);
+                    saves = {};
+                }
+            }
+
+            updateSaveSelector();
+
+            const saveIds = Object.keys(saves);
+            if (saveIds.length === 0) {
+                // No saves, show creation modal
+                showModal();
+            } else {
+                // Load first available save by default or the last played (for simplicity, first available)
+                loadGame(saveIds[0]);
+                modalOverlay.classList.add('hidden');
+            }
+        }
+
+        function saveGame() {
+            if (!currentSaveId) return;
+            saves[currentSaveId] = { ...gameState };
+            localStorage.setItem(STATE_KEY, JSON.stringify(saves));
+            updateSaveSelector();
+        }
+
+        function loadGame(saveId) {
+            if (saves[saveId]) {
+                currentSaveId = saveId;
+                gameState = { ...saves[saveId] };
+                saveSelector.value = saveId;
+                updateUI();
+            }
+        }
+
+        function createNewSave(name, type) {
+            const id = 'save_' + Date.now();
+            gameState = {
+                name: name || "Kitty",
+                type: type,
+                relationship: 0,
+                unlockedDangly: false,
+                unlockedLaser: false
+            };
+            currentSaveId = id;
+            saveGame();
+            modalOverlay.classList.add('hidden');
+            updateUI();
+        }
+
+        function updateSaveSelector() {
+            saveSelector.innerHTML = '';
+            const saveIds = Object.keys(saves);
+            if(saveIds.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = "";
+                opt.textContent = "No Saves";
+                saveSelector.appendChild(opt);
+                return;
+            }
+
+            for (const id in saves) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = `${saves[id].name} (${saves[id].relationship})`;
+                saveSelector.appendChild(opt);
+            }
+            if (currentSaveId) {
+                saveSelector.value = currentSaveId;
+            }
+        }
+
+        // UI Updates
+        function updateUI() {
+            catNameDisplay.textContent = `Name: ${gameState.name}`;
+            relationshipDisplay.textContent = `Relationship: ${Math.floor(gameState.relationship)}`;
+
+            // Check unlocks
+            if (gameState.relationship >= 50) gameState.unlockedDangly = true;
+            if (gameState.relationship >= 150) gameState.unlockedLaser = true;
+
+            toolButtons.dangly.disabled = !gameState.unlockedDangly;
+            toolButtons.laser.disabled = !gameState.unlockedLaser;
+
+            if(currentTool === 'dangly' && !gameState.unlockedDangly) selectTool('brush');
+            if(currentTool === 'laser' && !gameState.unlockedLaser) selectTool('brush');
+        }
+
+        function selectTool(toolId) {
+            if (toolButtons[toolId].disabled) return;
+
+            currentTool = toolId;
+            for (const key in toolButtons) {
+                toolButtons[key].classList.remove('selected');
+            }
+            toolButtons[toolId].classList.add('selected');
+        }
+
+        function addRelationship(amount) {
+            gameState.relationship += amount;
+            updateUI();
+            saveGame();
+        }
+
+        // Audio Synthesizer for Purring
+        let audioCtx;
+        let purrOscillator;
+        let purrGain;
+        let isPurring = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                purrOscillator = audioCtx.createOscillator();
+                purrGain = audioCtx.createGain();
+
+                purrOscillator.type = 'sawtooth';
+                purrOscillator.frequency.value = 25; // Low rumble
+
+                purrGain.gain.value = 0; // Start silent
+
+                // Lowpass filter to muffle it
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 150;
+
+                purrOscillator.connect(filter);
+                filter.connect(purrGain);
+                purrGain.connect(audioCtx.destination);
+
+                purrOscillator.start();
+            }
+            if(audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function setPurring(active) {
+            if (!audioCtx) return;
+            if (active && !isPurring) {
+                purrGain.gain.setTargetAtTime(0.5, audioCtx.currentTime, 0.1);
+                isPurring = true;
+            } else if (!active && isPurring) {
+                purrGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
+                isPurring = false;
+            }
+        }
+
+        function handleInteraction(e) {
+            if (!currentSaveId) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            let clientX, clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            mouseX = (clientX - rect.left) * scaleX;
+            mouseY = (clientY - rect.top) * scaleY;
+
+            // Check if over cat
+            const overCat = Math.abs(mouseX - catEntity.x) < 40 && Math.abs(mouseY - catEntity.y) < 30;
+
+            if (currentTool === 'brush') {
+                if (interactionActive && overCat) {
+                    if(catEntity.state !== 'eating') {
+                        catEntity.state = 'purring';
+                        catEntity.targetX = catEntity.x; // stop moving
+                        catEntity.targetY = catEntity.y;
+                        setPurring(true);
+                        // Add tiny amounts of relationship while brushing
+                        if (Math.random() < 0.1) addRelationship(0.1);
+                    }
+                } else {
+                    if (catEntity.state === 'purring') {
+                        catEntity.state = 'idle';
+                    }
+                    setPurring(false);
+                }
+            } else if (currentTool === 'laser') {
+                if (interactionActive) {
+                    catEntity.targetX = mouseX;
+                    catEntity.targetY = mouseY;
+                    catEntity.state = 'chasing';
+                    setPurring(false);
+                }
+            } else if (currentTool === 'dangly') {
+                if (interactionActive) {
+                     // Toy is at mouse pos
+                     ctx.fillStyle = '#8e44ad';
+                     ctx.fillRect(mouseX-5, mouseY-5, 10, 10);
+                     ctx.beginPath();
+                     ctx.moveTo(mouseX, mouseY);
+                     ctx.lineTo(mouseX, 0); // string to top
+                     ctx.stroke();
+
+                     // Cat bats at it if close
+                     const dist = Math.sqrt(Math.pow(mouseX - catEntity.x, 2) + Math.pow(mouseY - catEntity.y, 2));
+                     if (dist < 60) {
+                         catEntity.state = 'purring'; // repurpose purring animation for batting
+                         catEntity.facingRight = mouseX > catEntity.x;
+                         if (Math.random() < 0.05) addRelationship(0.2);
+                     } else {
+                         catEntity.targetX = mouseX;
+                         catEntity.targetY = mouseY + 40; // Aim below toy
+                         catEntity.state = 'walking';
+                     }
+                     setPurring(false);
+                }
+            }
+        }
+
+        function handleClick(e) {
+             if (!currentSaveId) return;
+             initAudio(); // Initialize audio context on first click
+
+             if (currentTool === 'treat') {
+                 treats.push({x: mouseX, y: mouseY});
+                 // Switch back to brush after dropping a treat
+                 selectTool('brush');
+             }
+        }
+
+        // Event Listeners
+        function setupEventListeners() {
+            // Pointer events for canvas
+            canvas.addEventListener('mousedown', (e) => {
+                interactionActive = true;
+                handleInteraction(e);
+                handleClick(e);
+            });
+            canvas.addEventListener('mousemove', (e) => {
+                handleInteraction(e);
+            });
+            canvas.addEventListener('mouseup', () => {
+                interactionActive = false;
+                setPurring(false);
+                if(catEntity.state === 'purring' || catEntity.state === 'chasing') catEntity.state = 'idle';
+            });
+            canvas.addEventListener('mouseleave', () => {
+                interactionActive = false;
+                setPurring(false);
+                if(catEntity.state === 'purring' || catEntity.state === 'chasing') catEntity.state = 'idle';
+            });
+
+            // Touch events for canvas (prevent default scrolling)
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                interactionActive = true;
+                handleInteraction(e);
+                handleClick(e);
+            }, {passive: false});
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                handleInteraction(e);
+            }, {passive: false});
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                interactionActive = false;
+                setPurring(false);
+                if(catEntity.state === 'purring' || catEntity.state === 'chasing') catEntity.state = 'idle';
+            }, {passive: false});
+
+
+            btnAdopt.addEventListener('click', () => {
+                const name = newCatNameInput.value.trim();
+                const type = newCatTypeSelect.value;
+                if (name) {
+                    createNewSave(name, type);
+                    initAudio(); // Init audio on adopt
+                }
+            });
+
+            btnNewSave.addEventListener('click', () => {
+                showModal();
+            });
+
+            saveSelector.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    loadGame(e.target.value);
+                }
+            });
+
+            toolButtons.brush.addEventListener('click', () => selectTool('brush'));
+            toolButtons.treat.addEventListener('click', () => selectTool('treat'));
+            toolButtons.dangly.addEventListener('click', () => selectTool('dangly'));
+            toolButtons.laser.addEventListener('click', () => selectTool('laser'));
+        }
+
+        function showModal() {
+            newCatNameInput.value = '';
+            modalOverlay.classList.remove('hidden');
+        }
+
+        // Start
+        window.onload = init;
+    </script>
+</body>
+</html>
