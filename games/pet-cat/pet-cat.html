@@ -267,6 +267,7 @@
 
         // Game Objects
         let treats = [];
+        let particles = [];
         let mouseX = 0;
         let mouseY = 0;
         let interactionActive = false; // Is mouse down/touching?
@@ -329,12 +330,35 @@
                  }
             } else if (catEntity.state === 'purring') {
                  catEntity.frame = Math.floor(catEntity.stateTime * 4) % 2; // purr wiggle
+
+                 // Spawn heart particles occasionally
+                 if (Math.random() < 0.05) {
+                     particles.push({
+                         x: catEntity.x + (Math.random() - 0.5) * 20,
+                         y: catEntity.y - 10,
+                         vx: (Math.random() - 0.5) * 10,
+                         vy: -15 - Math.random() * 10,
+                         life: 1.0, // seconds
+                         maxLife: 1.0
+                     });
+                 }
             } else if (catEntity.state === 'eating') {
                  catEntity.frame = Math.floor(catEntity.stateTime * 6) % 2; // eating bop
                  if (catEntity.stateTime > 2) {
                      catEntity.state = 'idle';
                      catEntity.stateTime = 0;
                  }
+            }
+
+            // Particles logic
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= dt;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
             }
 
             // Treat logic
@@ -384,8 +408,44 @@
 
             drawCat();
 
+            // Draw Particles
+            for (let p of particles) {
+                ctx.fillStyle = `rgba(231, 76, 60, ${p.life / p.maxLife})`;
+                // Simple pixel heart
+                ctx.fillRect(p.x - 2, p.y - 2, 2, 2);
+                ctx.fillRect(p.x + 2, p.y - 2, 2, 2);
+                ctx.fillRect(p.x - 4, p.y, 10, 2);
+                ctx.fillRect(p.x - 2, p.y + 2, 6, 2);
+                ctx.fillRect(p.x, p.y + 4, 2, 2);
+            }
+
             // Draw UI Overlays (Toys)
-            if (interactionActive && currentTool === 'laser') {
+            if (interactionActive && currentTool === 'brush') {
+                // Draw pixel brush cursor
+                ctx.save();
+                ctx.translate(mouseX, mouseY);
+                const bp = 3; // brush pixel size
+
+                // Brush handle
+                ctx.fillStyle = '#8e44ad';
+                ctx.fillRect(0, -6*bp, 2*bp, 5*bp);
+                ctx.fillStyle = '#9b59b6';
+                ctx.fillRect(0, -6*bp, 1*bp, 5*bp); // highlight
+
+                // Brush head
+                ctx.fillStyle = '#f39c12';
+                ctx.fillRect(-2*bp, -1*bp, 6*bp, 2*bp);
+
+                // Bristles
+                ctx.fillStyle = '#ecf0f1';
+                ctx.fillRect(-2*bp, 1*bp, 6*bp, 2*bp);
+                ctx.fillStyle = '#bdc3c7';
+                for(let i=0; i<6; i+=2) {
+                    ctx.fillRect((-2+i)*bp, 1*bp, 1*bp, 2*bp);
+                }
+
+                ctx.restore();
+            } else if (interactionActive && currentTool === 'laser') {
                 ctx.fillStyle = 'red';
                 ctx.beginPath();
                 ctx.arc(mouseX, mouseY, 4, 0, Math.PI*2);
@@ -430,7 +490,10 @@
 
             // Tail
             ctx.fillStyle = colors.dark;
-            if (catEntity.state === 'purring' || catEntity.state === 'walking') {
+            if (catEntity.state === 'purring') {
+                // Happy purring wag (larger range)
+                ctx.fillRect(-8*p, (catEntity.frame === 0 ? -2 : -5)*p, 2*p, 6*p);
+            } else if (catEntity.state === 'walking') {
                 ctx.fillRect(-8*p, (catEntity.frame === 0 ? -3 : -4)*p, 2*p, 6*p);
             } else {
                 ctx.fillRect(-8*p, -3*p, 2*p, 6*p);
@@ -465,10 +528,12 @@
             ctx.fillRect(6*p, -6*p, 2*p, 2*p);
 
             // Eyes
-            ctx.fillStyle = catEntity.state === 'purring' ? colors.dark : '#000';
+            ctx.fillStyle = '#000';
             if (catEntity.state === 'purring') {
-                ctx.fillRect(4*p, -2*p, 2*p, 1*p);
-                ctx.fillRect(7*p, -2*p, 1*p, 1*p);
+                // Closed, happy eyes (horizontal lines, slightly darker base color)
+                ctx.fillStyle = colors.dark;
+                ctx.fillRect(3*p, -1*p, 2*p, 1*p);
+                ctx.fillRect(7*p, -1*p, 2*p, 1*p);
             } else {
                 ctx.fillRect(4*p, -2*p, 1*p, 1*p);
                 ctx.fillRect(7*p, -2*p, 1*p, 1*p);
@@ -570,6 +635,9 @@
 
             toolButtons.dangly.disabled = !gameState.unlockedDangly;
             toolButtons.laser.disabled = !gameState.unlockedLaser;
+
+            toolButtons.dangly.textContent = gameState.unlockedDangly ? "Dangly Toy" : "Dangly (Rel 50)";
+            toolButtons.laser.textContent = gameState.unlockedLaser ? "Laser Pointer" : "Laser (Rel 150)";
 
             if(currentTool === 'dangly' && !gameState.unlockedDangly) selectTool('brush');
             if(currentTool === 'laser' && !gameState.unlockedLaser) selectTool('brush');
