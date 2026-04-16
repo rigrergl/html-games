@@ -423,7 +423,7 @@
             if (interactionActive && currentTool === 'brush') {
                 // Draw pixel brush cursor
                 ctx.save();
-                ctx.translate(mouseX, mouseY);
+                ctx.translate(mouseX - 30, mouseY - 40);
                 const bp = 3; // brush pixel size
 
                 // Brush handle
@@ -455,12 +455,45 @@
                 ctx.arc(mouseX, mouseY, 8, 0, Math.PI*2);
                 ctx.fill();
             } else if (interactionActive && currentTool === 'dangly') {
-                ctx.fillStyle = '#8e44ad';
-                ctx.fillRect(mouseX-5, mouseY-5, 10, 10);
+                const tx = mouseX - 30;
+                const ty = mouseY - 40;
+
+                // Draw string
                 ctx.beginPath();
-                ctx.moveTo(mouseX, mouseY);
-                ctx.lineTo(mouseX, 0); // string to top
+                ctx.moveTo(tx, ty);
+                ctx.lineTo(tx, 0); // string to top
                 ctx.stroke();
+
+                // Draw pixel bird
+                ctx.save();
+                ctx.translate(tx, ty);
+                const p = 2; // pixel size for bird
+
+                // Bird body (blue)
+                ctx.fillStyle = '#3498db';
+                ctx.fillRect(-3*p, -2*p, 6*p, 4*p);
+                ctx.fillRect(-2*p, -3*p, 4*p, 1*p); // top head
+                ctx.fillRect(-2*p, 2*p, 4*p, 1*p); // bottom
+
+                // Eye (white + black)
+                ctx.fillStyle = 'white';
+                ctx.fillRect(1*p, -2*p, 2*p, 2*p);
+                ctx.fillStyle = 'black';
+                ctx.fillRect(2*p, -1*p, 1*p, 1*p);
+
+                // Beak (yellow)
+                ctx.fillStyle = '#f1c40f';
+                ctx.fillRect(3*p, 0, 2*p, 1*p);
+
+                // Wing (dark blue)
+                ctx.fillStyle = '#2980b9';
+                ctx.fillRect(-2*p, 0, 3*p, 2*p);
+
+                // Tail
+                ctx.fillStyle = '#3498db';
+                ctx.fillRect(-5*p, -1*p, 2*p, 2*p);
+
+                ctx.restore();
             }
         }
 
@@ -616,7 +649,7 @@
             for (const id in saves) {
                 const opt = document.createElement('option');
                 opt.value = id;
-                opt.textContent = `${saves[id].name} (${saves[id].relationship})`;
+                opt.textContent = saves[id].name;
                 saveSelector.appendChild(opt);
             }
             if (currentSaveId) {
@@ -696,9 +729,11 @@
         function setPurring(active) {
             if (!audioCtx) return;
             if (active && !isPurring) {
+                purrGain.gain.cancelScheduledValues(audioCtx.currentTime);
                 purrGain.gain.setTargetAtTime(0.5, audioCtx.currentTime, 0.1);
                 isPurring = true;
             } else if (!active && isPurring) {
+                purrGain.gain.cancelScheduledValues(audioCtx.currentTime);
                 purrGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
                 isPurring = false;
             }
@@ -727,7 +762,11 @@
             const overCat = Math.abs(mouseX - catEntity.x) < 40 && Math.abs(mouseY - catEntity.y) < 30;
 
             if (currentTool === 'brush') {
-                if (interactionActive && overCat) {
+                const brushX = mouseX - 30;
+                const brushY = mouseY - 40;
+                const brushOverCat = Math.abs(brushX - catEntity.x) < 40 && Math.abs(brushY - catEntity.y) < 30;
+
+                if (interactionActive && brushOverCat) {
                     if(catEntity.state !== 'eating') {
                         catEntity.state = 'purring';
                         catEntity.targetX = catEntity.x; // stop moving
@@ -751,15 +790,18 @@
                 }
             } else if (currentTool === 'dangly') {
                 if (interactionActive) {
+                     const danglyX = mouseX - 30;
+                     const danglyY = mouseY - 40;
+
                      // Cat bats at it if close
-                     const dist = Math.sqrt(Math.pow(mouseX - catEntity.x, 2) + Math.pow(mouseY - catEntity.y, 2));
+                     const dist = Math.sqrt(Math.pow(danglyX - catEntity.x, 2) + Math.pow(danglyY - catEntity.y, 2));
                      if (dist < 60) {
                          catEntity.state = 'purring'; // repurpose purring animation for batting
-                         catEntity.facingRight = mouseX > catEntity.x;
+                         catEntity.facingRight = danglyX > catEntity.x;
                          if (Math.random() < 0.05) addRelationship(0.2);
                      } else {
-                         catEntity.targetX = mouseX;
-                         catEntity.targetY = mouseY + 40; // Aim below toy
+                         catEntity.targetX = danglyX;
+                         catEntity.targetY = danglyY + 40; // Aim below toy
                          catEntity.state = 'walking';
                      }
                      setPurring(false);
@@ -783,8 +825,8 @@
             // Pointer events for canvas
             canvas.addEventListener('mousedown', (e) => {
                 interactionActive = true;
-                handleInteraction(e);
                 handleClick(e);
+                handleInteraction(e);
             });
             canvas.addEventListener('mousemove', (e) => {
                 handleInteraction(e);
@@ -804,8 +846,8 @@
             canvas.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 interactionActive = true;
-                handleInteraction(e);
                 handleClick(e);
+                handleInteraction(e);
             }, {passive: false});
             canvas.addEventListener('touchmove', (e) => {
                 e.preventDefault();
