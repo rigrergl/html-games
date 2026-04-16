@@ -336,33 +336,33 @@
 
     const SPRITES = {
         ship: [
-            ".......W........",
-            "......WWW.......",
-            "......WWW.......",
-            ".....WWWWW......",
-            "....WW.R.WW.....",
-            "....WW.W.WW.....",
-            "....WW.W.WW.....",
-            "....WWWWWWW.....",
-            "....WWWWWWW.....",
-            "...WWWWWWWWW....",
-            "...W.WWWWW.W....",
-            "..WW.WWWWW.WW...",
-            "..WW.WWWWW.WW...",
-            ".WW..WWWWW..WW..",
-            ".WW..WWWWW..WW..",
-            "WW...WWWWW...WW."
+            ".......L........",
+            "......LCL.......",
+            "......LCL.......",
+            ".....LLLLL......",
+            "....R.LCL.R.....",
+            "...LL.LCL.LL....",
+            "...LLDDDDDLL....",
+            "...LLDDDDDLL....",
+            "..LLL.DD.LLL....",
+            "..LLL....LLL....",
+            ".WLLL....LLLW...",
+            ".WWLL....LLWW...",
+            "WWWW......WWWW..",
+            "R..R......R..R..",
+            "................",
+            "................"
         ],
         shipFlame1: [
-            ".......R........",
-            "......RYR.......",
-            "......YWY.......",
-            ".......Y........"
+            ".......C........",
+            "......CWC.......",
+            "......O.O.......",
+            ".......B........"
         ],
         shipFlame2: [
-            "......RYR.......",
-            "......YWY.......",
-            ".......W........",
+            "......CWC.......",
+            "......O.O.......",
+            ".......B........",
             "................"
         ],
         bug1: [
@@ -894,7 +894,7 @@
         { id: 'gravity', label: 'GRAVITY FLIP', color: '#fa0', icon: 'G' },
         { id: 'minigun', label: 'MINIGUN', color: '#ccc', icon: 'R' },
         { id: 'plasma', label: 'PLASMA WAVE', color: '#0ef', icon: 'X' },
-        { id: 'meteor', label: 'METEOR SHOWER', color: '#f60', icon: 'E' },
+        { id: 'meteor', label: 'METEOR SHOWER', color: '#0af', icon: 'E' },
         { id: 'freeze', label: 'FREEZE RAY', color: '#8ff', icon: 'F' },
         { id: 'ricochet', label: 'RICOCHET', color: '#ef0', icon: 'K' },
         { id: 'drones', label: 'DRONE SWARM', color: '#bf0', icon: 'N' },
@@ -1531,6 +1531,7 @@
                 if (!e.alive || bm.hit.has(e)) continue;
                 if (Math.abs(bm.x - e.x) < e.w * 0.6 + 10 * scale && Math.abs(bm.y - e.y) < e.h * 0.6 + 10 * scale) {
                     bm.hit.add(e);
+                    e.hp = 0; // boomerang instantly kills
                     hitEnemy(e);
                     spawnParticles(e.x, e.y, '#f55', 6, 3);
                 }
@@ -1630,6 +1631,7 @@
                 let dist = Math.hypot(e.x - pw.x, e.y - pw.y);
                 if (Math.abs(dist - pw.radius) < 20 * scale) {
                     pw.hit.add(e);
+                    e.hp = 0; // plasma wave instantly kills
                     hitEnemy(e);
                 }
             }
@@ -1657,7 +1659,7 @@
                 if (Math.hypot(e.x - m.x, e.y - m.y) < (e.w + m.size) * 0.5) {
                     hitEnemy(e);
                     if (e.alive) hitEnemy(e); // meteors hit hard
-                    spawnExplosion(m.x, m.y, '#f60', 1);
+                    spawnExplosion(m.x, m.y, '#0af', 1);
                     m.life = 0;
                     break;
                 }
@@ -1665,7 +1667,7 @@
             m.life--;
             if (m.life <= 0 || m.y > H + 20) {
                 if (m.life <= 0) {
-                    spawnExplosion(m.x, m.y, '#f60', 0.8);
+                    spawnExplosion(m.x, m.y, '#0af', 0.8);
                     screenShake = 3;
                 }
                 meteors.splice(i, 1);
@@ -1675,37 +1677,53 @@
                 particles.push({
                     x: m.x, y: m.y,
                     vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 2,
-                    life: 15, maxLife: 15, color: '#f80', size: 3 * scale
+                    life: 15, maxLife: 15, color: '#0cf', size: 3 * scale
                 });
             }
         }
 
-        // --- ORBIT DRONES ---
+        // --- DRONE SWARM ---
         for (let i = orbitDrones.length - 1; i >= 0; i--) {
             let d = orbitDrones[i];
-            d.angle += 0.06;
-            d.x = player.x + Math.cos(d.angle) * d.orbitRadius;
-            d.y = player.y + Math.sin(d.angle) * d.orbitRadius;
-            // Auto-fire at nearby enemies
-            if (frameCount % 12 === 0) {
-                let closest = null, bestDist = 200 * scale;
+            // Find target if none or target dead
+            if (!d.target || !d.target.alive) {
+                let closest = null, bestDist = Infinity;
                 for (let e of enemies) {
                     if (!e.alive) continue;
                     let dist = Math.hypot(e.x - d.x, e.y - d.y);
                     if (dist < bestDist) { bestDist = dist; closest = e; }
                 }
-                if (closest) {
-                    let angle = Math.atan2(closest.y - d.y, closest.x - d.x);
-                    bullets.push({
-                        x: d.x, y: d.y,
-                        vx: Math.cos(angle) * 6 * scale,
-                        vy: Math.sin(angle) * 6 * scale,
-                        drone: true
-                    });
-                }
+                d.target = closest;
             }
+
+            // Move towards target or idle around player
+            let speed = 7 * scale;
+            if (d.target && d.target.alive) {
+                let angle = Math.atan2(d.target.y - d.y, d.target.x - d.x);
+                d.vx += (Math.cos(angle) * speed - d.vx) * 0.1;
+                d.vy += (Math.sin(angle) * speed - d.vy) * 0.1;
+            } else {
+                let angle = Math.atan2(player.y - 80 * scale - d.y, player.x - d.x);
+                d.vx += (Math.cos(angle) * speed * 0.5 - d.vx) * 0.05;
+                d.vy += (Math.sin(angle) * speed * 0.5 - d.vy) * 0.05;
+            }
+
+            d.x += d.vx;
+            d.y += d.vy;
+
+            // Damage and explode on contact
+            if (d.target && d.target.alive && Math.hypot(d.target.x - d.x, d.target.y - d.y) < d.target.w * 0.6) {
+                d.target.hp = 0; // deadly kamikaze drone
+                hitEnemy(d.target);
+                spawnExplosion(d.x, d.y, '#bf0', 1);
+                d.life = 0; // drone dies on hit
+            }
+
             d.life--;
-            if (d.life <= 0) orbitDrones.splice(i, 1);
+            if (d.life <= 0) {
+                if (d.life === 0) spawnParticles(d.x, d.y, '#bf0', 4, 2);
+                orbitDrones.splice(i, 1);
+            }
         }
 
         // --- PHOTON TORPEDOES ---
@@ -1749,10 +1767,10 @@
         for (let i = vortexBeams.length - 1; i >= 0; i--) {
             let vb = vortexBeams[i];
             vb.angle += 0.08;
-            vb.length = Math.min(vb.length + 8 * scale, H * 0.8);
+            vb.length = Math.min(vb.length + 30 * scale, H * 2.5); // Extend length quickly across entire map
             vb.life--;
             // Damage enemies along the beam
-            let bx = player.x, by = player.y;
+            let bx = player.x, by = player.y - player.h * 0.5; // Origin at front of ship
             for (let e of enemies) {
                 if (!e.alive) continue;
                 // Check if enemy is near the spinning beam line
@@ -1762,7 +1780,8 @@
                 let t = Math.max(0, Math.min(1, ((e.x - bx) * dx + (e.y - by) * dy) / (dx * dx + dy * dy)));
                 let closestX = bx + t * dx, closestY = by + t * dy;
                 if (Math.hypot(e.x - closestX, e.y - closestY) < 25 * scale) {
-                    if (frameCount % 6 === 0) hitEnemy(e);
+                    e.hp = 0; // instantly kill anything it touches
+                    hitEnemy(e);
                 }
             }
             if (vb.life <= 0) vortexBeams.splice(i, 1);
@@ -1877,14 +1896,16 @@
         if (type === 'shield') {
             shieldHP = 2;
         } else if (type === 'drones') {
-            // Spawn 4 orbiting drones
+            // Spawn multiple independent hunter-killer drones
             orbitDrones = [];
-            for (let i = 0; i < 4; i++) {
+            for (let i = 0; i < 12; i++) {
                 orbitDrones.push({
-                    x: player.x, y: player.y,
-                    angle: (Math.PI * 2 / 4) * i,
-                    orbitRadius: 50 * scale,
-                    life: POWERUP_DURATION
+                    x: player.x + (Math.random() - 0.5) * 40 * scale,
+                    y: player.y + (Math.random() - 0.5) * 40 * scale,
+                    vx: (Math.random() - 0.5) * 8 * scale,
+                    vy: -4 * scale - Math.random() * 4 * scale,
+                    life: POWERUP_DURATION * 1.5,
+                    target: null
                 });
             }
         } else if (type === 'supernova') {
@@ -2468,7 +2489,7 @@
             ctx.save();
             ctx.translate(m.x, m.y);
             ctx.rotate(m.rotation);
-            ctx.fillStyle = '#f60';
+            ctx.fillStyle = '#08d';
             ctx.beginPath();
             // Jagged rock shape
             for (let k = 0; k < 7; k++) {
@@ -2479,31 +2500,30 @@
             }
             ctx.closePath();
             ctx.fill();
-            ctx.fillStyle = '#fa0';
+            ctx.fillStyle = '#0ef';
             ctx.beginPath();
             ctx.arc(0, 0, m.size * 0.4, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
         }
 
-        // Orbit drones
+        // Drone swarm
         for (let d of orbitDrones) {
             ctx.save();
             ctx.translate(d.x, d.y);
-            ctx.rotate(frameCount * 0.1);
+            ctx.rotate(Math.atan2(d.vy, d.vx) + Math.PI / 2);
             ctx.fillStyle = '#bf0';
-            // Small diamond drone
+            // Aggressive triangular drone
             ctx.beginPath();
-            ctx.moveTo(0, -5 * scale);
-            ctx.lineTo(4 * scale, 0);
-            ctx.lineTo(0, 5 * scale);
-            ctx.lineTo(-4 * scale, 0);
+            ctx.moveTo(0, -8 * scale);
+            ctx.lineTo(5 * scale, 6 * scale);
+            ctx.lineTo(0, 3 * scale);
+            ctx.lineTo(-5 * scale, 6 * scale);
             ctx.closePath();
             ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(0, 0, 2 * scale, 0, Math.PI * 2);
-            ctx.fill();
+            // Engine glow
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(-2 * scale, 4 * scale, 4 * scale, 4 * scale);
             ctx.restore();
         }
 
@@ -2527,13 +2547,14 @@
         // Vortex beams
         for (let vb of vortexBeams) {
             let alpha = Math.min(vb.life / 15, 1);
-            let endX = player.x + Math.cos(vb.angle) * vb.length;
-            let endY = player.y + Math.sin(vb.angle) * vb.length;
+            let bx = player.x, by = player.y - player.h * 0.5; // match updated collision origin
+            let endX = bx + Math.cos(vb.angle) * vb.length;
+            let endY = by + Math.sin(vb.angle) * vb.length;
             ctx.save();
             ctx.strokeStyle = `rgba(255,0,170,${alpha * 0.4})`;
             ctx.lineWidth = 20 * scale;
             ctx.beginPath();
-            ctx.moveTo(player.x, player.y);
+            ctx.moveTo(bx, by);
             ctx.lineTo(endX, endY);
             ctx.stroke();
             ctx.strokeStyle = `rgba(255,100,200,${alpha * 0.8})`;
