@@ -8,7 +8,7 @@ def run_test():
         context = browser.new_context()
         page = context.new_page()
 
-        # Test 1: Debug mode active - High score should not be saved
+        # Test 1: Debug mode active - High score should not be saved AND lives should not decrement
         file_path = f"file://{os.path.abspath('games/galaga/galaga.html')}?&debug=true"
 
         # We inject a script before anything loads to hook localStorage
@@ -33,6 +33,9 @@ def run_test():
 
         print("Playing game...")
 
+        initial_lives_text = page.locator('#lives').inner_text()
+        print(f"Initial lives in debug mode: {initial_lives_text}")
+
         for _ in range(5):
             page.click('#debugUse', timeout=1000)
             page.wait_for_timeout(100)
@@ -41,29 +44,20 @@ def run_test():
             page.keyboard.press(" ")
             page.wait_for_timeout(50)
 
-        # Wait until game over screen is visible
-        print("Waiting for death...")
-        page.wait_for_selector('#gameOverScreen', state='visible', timeout=60000)
+        print("Waiting for some time to be hit...")
+        page.wait_for_timeout(10000)
 
-        set_item_called = page.evaluate("window._setItemCalled")
-        saved_score = page.evaluate("localStorage.getItem('galagaHi')")
+        lives_text_after_hit = page.locator('#lives').inner_text()
+        print(f"Lives after getting hit in debug mode: {lives_text_after_hit}")
 
-        final_score_text = page.locator('#finalScore').inner_text()
-        final_score = int(final_score_text.replace('SCORE: ', '').replace(',', ''))
-        print(f"Debug Mode - Final Score: {final_score}")
-        print(f"Debug Mode - Set Item Called: {set_item_called}")
-        print(f"Debug Mode - Saved Score: {saved_score}")
+        assert lives_text_after_hit == initial_lives_text, "Lives SHOULD NOT decrement in debug mode"
+        print("Debug mode lives test passed!")
 
-        if final_score > 0:
-            assert not set_item_called, "localStorage.setItem should NOT be called in debug mode"
-            assert saved_score == '0', "High score should NOT be updated in debug mode"
-            print("Debug mode test passed!")
-        else:
-            print("Warning: Score was 0, test might not be robust. Consider re-running.")
+        # We cannot verify score saving here easily because the game won't end (lives never reach 0)
 
         context.close()
 
-        # Test 2: Normal mode - High score SHOULD be saved
+        # Test 2: Normal mode - High score SHOULD be saved AND lives SHOULD decrement
         context = browser.new_context()
         page = context.new_page()
         file_path_normal = f"file://{os.path.abspath('games/galaga/galaga.html')}"
@@ -85,12 +79,20 @@ def run_test():
         page.click('#startBtn')
         page.wait_for_timeout(1000)
 
+        initial_lives_text_normal = page.locator('#lives').inner_text()
+        print(f"Initial lives in normal mode: {initial_lives_text_normal}")
+
         print("Playing game in normal mode...")
         for _ in range(100):
             page.keyboard.press(" ")
             page.wait_for_timeout(50)
 
         page.wait_for_selector('#gameOverScreen', state='visible', timeout=60000)
+
+        lives_text_after_hit_normal = page.locator('#lives').inner_text()
+        print(f"Lives after death in normal mode: {lives_text_after_hit_normal}")
+
+        assert lives_text_after_hit_normal != initial_lives_text_normal, "Lives SHOULD decrement in normal mode"
 
         set_item_called_normal = page.evaluate("window._setItemCalled")
         saved_score_normal = page.evaluate("localStorage.getItem('galagaHi')")

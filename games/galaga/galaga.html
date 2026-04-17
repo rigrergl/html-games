@@ -1981,7 +1981,9 @@
             }
             return;
         }
-        lives--;
+        if (!isDebugMode) {
+            lives--;
+        }
         Sound.playerDamage();
         spawnExplosion(player.x, player.y, '#f44', 2.5);
         spawnExplosion(player.x, player.y, '#fff', 1.5);
