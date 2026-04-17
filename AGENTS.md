@@ -41,13 +41,13 @@ Detailed documentation lives in `instructions/`. Key files:
    - Interact with the game using Playwright to verify mechanics and check console logs.
 3. **Write** `games/game-name/README.md` with title, screenshot, description, and the **main-branch** preview link.
 4. **Commit and push** to your working branch.
-5. **Create a Pull Request (PR)** and include the **feature-branch preview link** in the PR description. **Assemble it dynamically:**
-   ```bash
-   # Get dynamic components for the preview link
-   REPO_URL=$(git remote get-url origin | sed 's/\.git$//')
-   BRANCH_NAME=$(gh pr view --json headRefName -jq .headRefName)
+5. **Create a Pull Request (PR)** and include the **feature-branch preview link** in the PR description. **Assemble it manually:**
+   Do NOT use local bash commands (like `git rev-parse` or `gh pr view`) to determine the branch name, as your local workspace branch is different from the remote PR branch.
+   Instead, use the exact `branch_name` string that you pass to the `submit` tool.
+
+   ```
    # Assemble link
-   PREVIEW_URL="https://htmlpreview.github.io/?${REPO_URL}/blob/${BRANCH_NAME}/games/game-name/game-name.html"
+   PREVIEW_URL="https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/<EXACT_SUBMIT_BRANCH_NAME>/games/game-name/game-name.html"
    ```
 
 ## Debugging Quick Reference
