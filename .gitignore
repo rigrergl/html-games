@@ -7,3 +7,4 @@
 # Root-level video recordings
 /*.webm
 /*.mp4
+__pycache__/
