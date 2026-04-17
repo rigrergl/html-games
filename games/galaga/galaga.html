@@ -349,6 +349,8 @@
 (function() {
     'use strict';
 
+    const isDebugMode = new URLSearchParams(window.location.search).has('debug');
+
     const canvas = document.getElementById('c');
     const ctx = canvas.getContext('2d');
     const touchZone = document.getElementById('touchZone');
@@ -2845,7 +2847,9 @@
         if (animId) { cancelAnimationFrame(animId); animId = null; }
         if (score > hiScore) {
             hiScore = score;
-            localStorage.setItem('galagaHi', hiScore);
+            if (!isDebugMode) {
+                localStorage.setItem('galagaHi', hiScore);
+            }
         }
         document.getElementById('finalScore').textContent = 'SCORE: ' + formatScore(score);
         document.getElementById('hiScoreText').textContent = 'HI-SCORE: ' + formatScore(hiScore);
@@ -2942,7 +2946,7 @@
     }, { passive: false });
 
     // --- DEBUG POWER-UPS UI ---
-    if (new URLSearchParams(window.location.search).has('debug')) {
+    if (isDebugMode) {
         const debugPanel = document.getElementById('debugPanel');
         const btnPrev = document.getElementById('debugPrev');
         const btnNext = document.getElementById('debugNext');
