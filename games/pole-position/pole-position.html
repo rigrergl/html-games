@@ -111,6 +111,7 @@
         const cameraDepth = 1 / Math.tan((fieldOfView / 2) * Math.PI / 180);
         const drawDistance = 300;
         const roadWidth = 2000;
+        const TRACK_TOTAL = trackLength * segmentLength;
 
         // Player state
         let position = 0;
@@ -123,6 +124,11 @@
         const offRoadDecel = -maxSpeed / 2;
         const offRoadLimit = maxSpeed / 4;
         let score = 0;
+
+        // Traffic / obstacles
+        const trafficCars = [];
+        let crashTimer = 0;
+        let crashes = 0;
 
         // Input state
         const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
@@ -179,6 +185,51 @@
 
         function findSegment(z) {
             return segments[Math.floor(z / segmentLength) % segments.length];
+        }
+
+        function shadeColor(hex, amt) {
+            return '#' + hex.slice(1).match(/.{2}/g).map(c => {
+                const v = Math.max(0, Math.min(255, parseInt(c, 16) + amt));
+                return v.toString(16).padStart(2, '0');
+            }).join('');
+        }
+
+        function initTrafficCars() {
+            const colors = ['#3399FF', '#FF9900', '#00CC44', '#FF3399', '#FFCC00', '#CC44FF'];
+            trafficCars.length = 0;
+            for (let i = 0; i < 20; i++) {
+                trafficCars.push({
+                    z: (120 + Math.random() * (trackLength - 240)) * segmentLength,
+                    offset: (Math.random() * 1.4) - 0.7,
+                    color: colors[i % colors.length],
+                    speed: maxSpeed * (0.28 + Math.random() * 0.28)
+                });
+            }
+        }
+
+        function drawTrafficCar(cx, cy, sw, color) {
+            const w = Math.min(Math.max(5, sw * 0.22), 180);
+            const h = w * 0.55;
+            if (w < 5) return;
+            const l = cx - w / 2, r = cx + w / 2;
+            const b = cy, t = cy - h;
+            // tires
+            ctx.fillStyle = '#111';
+            ctx.fillRect(l - w * 0.07, b - h * 0.2, w * 0.13, h * 0.2);
+            ctx.fillRect(r - w * 0.06, b - h * 0.2, w * 0.13, h * 0.2);
+            // lower body
+            ctx.fillStyle = color;
+            ctx.fillRect(l, t + h * 0.3, w, h * 0.7);
+            // roof
+            ctx.fillStyle = shadeColor(color, -40);
+            ctx.fillRect(l + w * 0.12, t, w * 0.76, h * 0.5);
+            // rear window
+            ctx.fillStyle = 'rgba(140,190,255,0.75)';
+            ctx.fillRect(l + w * 0.18, t + h * 0.04, w * 0.64, h * 0.38);
+            // taillights
+            ctx.fillStyle = '#FF2020';
+            ctx.fillRect(l, t + h * 0.48, w * 0.12, h * 0.22);
+            ctx.fillRect(r - w * 0.12, t + h * 0.48, w * 0.12, h * 0.22);
         }
 
         // Math utilities
@@ -272,13 +323,38 @@
 
             position = position + speed * dt;
 
-            if (position > trackLength * segmentLength) {
+            if (position > TRACK_TOTAL) {
                 position = 0;
             }
 
+            // Advance traffic cars
+            trafficCars.forEach(car => {
+                car.z += car.speed * dt;
+                if (car.z >= TRACK_TOTAL) {
+                    car.z -= TRACK_TOTAL;
+                    // Re-randomize offset on lap so the track feels varied
+                    car.offset = (Math.random() * 1.4) - 0.7;
+                }
+            });
+
+            // Collision detection (skipped during crash cooldown or when nearly stationary)
+            if (crashTimer <= 0 && speed > maxSpeed * 0.05) {
+                for (const car of trafficCars) {
+                    let cz = car.z - position;
+                    if (cz < 0) cz += TRACK_TOTAL;
+                    if (cz < 2 * segmentLength && cz > 0 && Math.abs(playerX - car.offset) < 0.5) {
+                        crashTimer = 1.5;
+                        crashes++;
+                        speed *= 0.2;
+                        break;
+                    }
+                }
+            }
+            crashTimer = Math.max(0, crashTimer - dt);
+
             score += speed * dt / 100;
 
-            scoreBoard.innerHTML = `SPEED: ${Math.round(speed / maxSpeed * 150)} MPH<br>SCORE: ${Math.floor(score)}`;
+            scoreBoard.innerHTML = `SPEED: ${Math.round(speed / maxSpeed * 150)} MPH<br>SCORE: ${Math.floor(score)}<br>CRASHES: ${crashes}`;
         }
 
         // Render loop
@@ -304,17 +380,27 @@
                 segment.looped = segment.index < baseSegment.index;
 
                 segment.p1.camera.z = (segment.index * segmentLength) - position;
-                if (segment.looped) segment.p1.camera.z += trackLength * segmentLength;
+                if (segment.looped) segment.p1.camera.z += TRACK_TOTAL;
                 segment.p2.camera.z = segment.p1.camera.z + segmentLength;
 
-                project(segment.p1, (playerX * roadWidth) - x, playerY + cameraHeight, position - (segment.looped ? trackLength * segmentLength : 0), cameraDepth, width, height, roadWidth);
-                project(segment.p2, (playerX * roadWidth) - x - dx, playerY + cameraHeight, position - (segment.looped ? trackLength * segmentLength : 0), cameraDepth, width, height, roadWidth);
+                project(segment.p1, (playerX * roadWidth) - x, playerY + cameraHeight, position - (segment.looped ? TRACK_TOTAL : 0), cameraDepth, width, height, roadWidth);
+                project(segment.p2, (playerX * roadWidth) - x - dx, playerY + cameraHeight, position - (segment.looped ? TRACK_TOTAL : 0), cameraDepth, width, height, roadWidth);
 
                 x = x + dx;
                 dx = dx + segment.curve;
 
                 renderSegments.push(segment);
             }
+
+            // Build per-segment traffic car lookup for back-to-front rendering
+            const carsBySegment = {};
+            trafficCars.forEach(car => {
+                let adjustedZ = car.z < position ? car.z + TRACK_TOTAL : car.z;
+                if (adjustedZ - position > drawDistance * segmentLength) return;
+                const idx = Math.floor(car.z / segmentLength) % segments.length;
+                if (!carsBySegment[idx]) carsBySegment[idx] = [];
+                carsBySegment[idx].push(car);
+            });
 
             for (let n = drawDistance - 1; n >= 0; n--) {
                 let segment = renderSegments[n];
@@ -364,9 +450,35 @@
                         lanex2 += laneW2;
                     }
                 }
+
+                // Draw traffic cars sitting on this segment
+                if (carsBySegment[segment.index]) {
+                    carsBySegment[segment.index].forEach(car => {
+                        drawTrafficCar(
+                            segment.p1.screen.x + car.offset * segment.p1.screen.w,
+                            segment.p1.screen.y,
+                            segment.p1.screen.w,
+                            car.color
+                        );
+                    });
+                }
             }
 
             drawCar();
+
+            // Crash flash overlay
+            if (crashTimer > 0) {
+                ctx.fillStyle = `rgba(255,0,0,${Math.min(0.55, crashTimer * 0.45)})`;
+                ctx.fillRect(0, 0, width, height);
+                if (crashTimer > 0.8) {
+                    ctx.fillStyle = '#FFF';
+                    ctx.font = `bold ${Math.round(72 * width / 1024)}px monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('CRASH!', width / 2, height / 2);
+                    ctx.textBaseline = 'alphabetic';
+                }
+            }
         }
 
         // Game loop
@@ -385,6 +497,7 @@
 
         // Init
         resetRoad();
+        initTrafficCars();
         requestAnimationFrame(loop);
     </script>
 </body>
