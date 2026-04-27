@@ -73,11 +73,12 @@ Detailed documentation lives in `instructions/`. Key files:
 5. **Deliver** the feature-branch preview link to the user. **Assemble it dynamically:**
    ```bash
    # Get dynamic components for the preview link
-   REPO_URL=$(git remote get-url origin | sed 's/\.git$//')
-   BRANCH_NAME=$(gh pr view --json headRefName -jq .headRefName)
+   REPO_URL="https://github.com/rigrergl/html-games"
+   BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
    # Assemble link
    PREVIEW_URL="https://htmlpreview.github.io/?${REPO_URL}/blob/${BRANCH_NAME}/games/game-name/game-name.html"
    ```
+   **ALWAYS post the preview link in chat inside a fenced code block (``` ``` ```) — never bold or plain text — so the user can copy it with one click. Also add it to the PR description if a PR exists. The repo URL is always `https://github.com/rigrergl/html-games`, not the local proxy URL.**
 
 ## MCP Tools Quick Reference
 
