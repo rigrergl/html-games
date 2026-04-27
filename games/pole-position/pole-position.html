@@ -158,49 +158,39 @@
         let trafficOsc, trafficGain;
         const prevCarCZ = {};
 
-        function makeDistortionCurve(amount) {
-            const curve = new Float32Array(256);
-            for (let i = 0; i < 256; i++) {
-                const x = i * 2 / 255 - 1;
-                curve[i] = (Math.PI + amount) * x / (Math.PI + amount * Math.abs(x));
-            }
-            return curve;
-        }
-
         function startAudio() {
             if (audioReady) return;
             try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return; }
+            audioCtx.resume();
 
-            // Engine: sawtooth + square sub → lowpass filter → soft clip → gain
+            // Engine: sawtooth + detuned sawtooth → lowpass filter → master gain
             engOsc1 = audioCtx.createOscillator();
             engOsc1.type = 'sawtooth';
             engOsc1.frequency.value = 80;
 
             engOsc2 = audioCtx.createOscillator();
-            engOsc2.type = 'square';
-            engOsc2.frequency.value = 40;
+            engOsc2.type = 'sawtooth';
+            engOsc2.frequency.value = 120;  // a fifth up for thickness
 
-            const subGain = audioCtx.createGain();
-            subGain.gain.value = 0.55;
+            const osc2G = audioCtx.createGain();
+            osc2G.gain.value = 0.5;
 
             engFilter = audioCtx.createBiquadFilter();
             engFilter.type = 'lowpass';
-            engFilter.frequency.value = 300;
-            engFilter.Q.value = 4;
-
-            const clipper = audioCtx.createWaveShaper();
-            clipper.curve = makeDistortionCurve(200);
-            clipper.oversample = '2x';
+            engFilter.frequency.value = 600;
+            engFilter.Q.value = 1.5;
 
             engGain = audioCtx.createGain();
-            engGain.gain.value = 0.12;
+            engGain.gain.value = 0;  // start silent, ramp in below
 
-            engOsc2.connect(subGain); subGain.connect(engFilter);
+            engOsc2.connect(osc2G); osc2G.connect(engFilter);
             engOsc1.connect(engFilter);
-            engFilter.connect(clipper);
-            clipper.connect(engGain);
+            engFilter.connect(engGain);
             engGain.connect(audioCtx.destination);
             engOsc1.start(); engOsc2.start();
+
+            // Ramp engine in over 0.4 s so it doesn't click
+            engGain.gain.setTargetAtTime(0.3, audioCtx.currentTime, 0.15);
 
             // Traffic ambient: sawtooth → bandpass → gain
             trafficOsc = audioCtx.createOscillator();
@@ -210,7 +200,7 @@
             const trafficFilter = audioCtx.createBiquadFilter();
             trafficFilter.type = 'bandpass';
             trafficFilter.frequency.value = 650;
-            trafficFilter.Q.value = 1.2;
+            trafficFilter.Q.value = 1.0;
 
             trafficGain = audioCtx.createGain();
             trafficGain.gain.value = 0;
@@ -225,13 +215,14 @@
 
         function updateEngineAudio(sp, accelDown) {
             if (!audioReady) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const t = audioCtx.currentTime;
-            const freq = 70 + sp * 210;
-            engOsc1.frequency.setTargetAtTime(freq, t, 0.07);
-            engOsc2.frequency.setTargetAtTime(freq * 0.5, t, 0.07);
-            engFilter.frequency.setTargetAtTime(200 + sp * 2800, t, 0.07);
-            const vol = 0.06 + sp * 0.25 + (accelDown ? 0.04 : 0);
-            engGain.gain.setTargetAtTime(Math.min(vol, 0.38), t, 0.07);
+            const freq = 80 + sp * 220;
+            engOsc1.frequency.setTargetAtTime(freq, t, 0.08);
+            engOsc2.frequency.setTargetAtTime(freq * 1.5, t, 0.08);
+            engFilter.frequency.setTargetAtTime(400 + sp * 3000, t, 0.08);
+            const vol = 0.28 + sp * 0.45 + (accelDown ? 0.1 : 0);
+            engGain.gain.setTargetAtTime(Math.min(vol, 0.75), t, 0.08);
         }
 
         function updateTrafficAudio() {
@@ -244,7 +235,7 @@
             }
             const prox = nearest < 50 * segmentLength ? 1 - nearest / (50 * segmentLength) : 0;
             const t = audioCtx.currentTime;
-            trafficGain.gain.setTargetAtTime(prox * 0.22, t, 0.12);
+            trafficGain.gain.setTargetAtTime(prox * 0.4, t, 0.12);
             trafficOsc.frequency.setTargetAtTime(85 + prox * 110, t, 0.1);
         }
 
@@ -261,7 +252,7 @@
             const g = audioCtx.createGain();
             const now = audioCtx.currentTime;
             g.gain.setValueAtTime(0, now);
-            g.gain.linearRampToValueAtTime(0.32, now + 0.04);
+            g.gain.linearRampToValueAtTime(0.6, now + 0.04);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
             src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
             src.start();
@@ -279,7 +270,7 @@
             src.buffer = buf;
             const filt = audioCtx.createBiquadFilter();
             filt.type = 'lowpass'; filt.frequency.value = 900;
-            const g = audioCtx.createGain(); g.gain.value = 0.75;
+            const g = audioCtx.createGain(); g.gain.value = 1.0;
             src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
             src.start();
         }
