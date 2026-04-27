@@ -232,15 +232,14 @@ function midiToFreq(midi) {
 function playNoteAudio(midi, duration = 0.5) {
   initAudio();
 
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-
-  if (instrumentSelect.value === "piano") {
-      osc.type = "triangle";
-  } else {
-      osc.type = "sawtooth";
+  if (instrumentSelect.value === "guitar") {
+    playGuitarNote(midi);
+    return;
   }
 
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "triangle";
   osc.frequency.setValueAtTime(midiToFreq(midi), audioCtx.currentTime);
 
   gain.gain.setValueAtTime(0, audioCtx.currentTime);
@@ -252,6 +251,46 @@ function playNoteAudio(midi, duration = 0.5) {
 
   osc.start(audioCtx.currentTime);
   osc.stop(audioCtx.currentTime + duration);
+}
+
+// Karplus-Strong plucked string synthesis
+function playGuitarNote(midi) {
+  const freq = midiToFreq(midi);
+  const sampleRate = audioCtx.sampleRate;
+  const duration = 3.0;
+  const totalSamples = Math.floor(sampleRate * duration);
+
+  // Delay line length determines pitch
+  const N = Math.round(sampleRate / freq);
+  const delayLine = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    delayLine[i] = Math.random() * 2 - 1;
+  }
+
+  const buffer = audioCtx.createBuffer(1, totalSamples, sampleRate);
+  const data = buffer.getChannelData(0);
+
+  // 0.996 damping keeps higher notes from ringing forever
+  const damping = 0.996;
+  let pos = 0;
+  for (let i = 0; i < totalSamples; i++) {
+    const next = (pos + 1) % N;
+    data[i] = delayLine[pos];
+    // Low-pass averaging filter in the feedback loop
+    delayLine[pos] = damping * 0.5 * (delayLine[pos] + delayLine[next]);
+    pos = next;
+  }
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start(audioCtx.currentTime);
 }
 
 function highlightNoteOn(midi) {
