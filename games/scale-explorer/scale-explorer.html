@@ -90,6 +90,7 @@ select:focus { border-color: #4caf50; }
         <option value="piano">Piano</option>
         <option value="guitar">Guitar</option>
         <option value="grand_piano" selected>Grand Piano</option>
+        <option value="saxophone">Alto Saxophone</option>
       </select>
     </div>
 
@@ -243,6 +244,11 @@ function playNoteAudio(midi, duration = 0.5) {
     return;
   }
 
+  if (instrumentSelect.value === "saxophone") {
+    playSaxophoneNote(midi, duration);
+    return;
+  }
+
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = "triangle";
@@ -327,6 +333,106 @@ function playGrandPianoNote(midi) {
     source.start(audioCtx.currentTime);
     source.stop(audioCtx.currentTime + 5.0);
   });
+}
+
+// Alto Saxophone synthesis using custom periodic wave, reed saturation, formant shaping, and vibrato
+function playSaxophoneNote(midi, duration = 0.5) {
+  const freq = midiToFreq(midi);
+  const now = audioCtx.currentTime;
+
+  // Custom periodic wave matching alto sax harmonic profile:
+  // strong fundamental + 2nd harmonic, rolling off steadily — conical bore gives even+odd harmonics
+  const numH = 20;
+  const real = new Float32Array(numH + 1);
+  const imag = new Float32Array(numH + 1);
+  const amps = [0, 1.0, 0.82, 0.64, 0.48, 0.36, 0.26, 0.18, 0.13, 0.09, 0.07,
+                    0.05, 0.04, 0.03, 0.022, 0.016, 0.012, 0.009, 0.006, 0.004, 0.003];
+  for (let i = 1; i <= numH; i++) real[i] = amps[i];
+  const saxWave = audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
+
+  const osc = audioCtx.createOscillator();
+  osc.setPeriodicWave(saxWave);
+  osc.frequency.value = freq;
+
+  // Soft tanh saturation simulating reed nonlinearity
+  const wshaperCurve = new Float32Array(512);
+  for (let i = 0; i < 512; i++) {
+    const x = (i / 256) - 1;
+    wshaperCurve[i] = Math.tanh(x * 2.2) / Math.tanh(2.2);
+  }
+  const wshaper = audioCtx.createWaveShaper();
+  wshaper.curve = wshaperCurve;
+  wshaper.oversample = '2x';
+
+  // Formant peak ~1.1 kHz (characteristic saxophone "honk")
+  const formant = audioCtx.createBiquadFilter();
+  formant.type = 'peaking';
+  formant.frequency.value = 1100;
+  formant.gain.value = 5;
+  formant.Q.value = 1.8;
+
+  // High shelf rolloff above 4 kHz to remove harshness
+  const shelf = audioCtx.createBiquadFilter();
+  shelf.type = 'highshelf';
+  shelf.frequency.value = 4000;
+  shelf.gain.value = -10;
+
+  // Short noise burst at attack — the "chiff" of the reed starting
+  const noiseLen = Math.floor(audioCtx.sampleRate * 0.045);
+  const noiseBuf = audioCtx.createBuffer(1, noiseLen, audioCtx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < noiseLen; i++) nd[i] = (Math.random() * 2 - 1);
+  const noiseSrc = audioCtx.createBufferSource();
+  noiseSrc.buffer = noiseBuf;
+  const noiseBPF = audioCtx.createBiquadFilter();
+  noiseBPF.type = 'bandpass';
+  noiseBPF.frequency.value = freq * 1.5;
+  noiseBPF.Q.value = 4;
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.18, now);
+  noiseGain.gain.linearRampToValueAtTime(0.0, now + 0.04);
+  noiseSrc.connect(noiseBPF);
+  noiseBPF.connect(noiseGain);
+
+  // ADSR envelope
+  const masterGain = audioCtx.createGain();
+  const attack = 0.022;
+  const decay = 0.06;
+  const sustain = 0.44;
+  const release = 0.10;
+  masterGain.gain.setValueAtTime(0, now);
+  masterGain.gain.linearRampToValueAtTime(0.58, now + attack);
+  masterGain.gain.linearRampToValueAtTime(sustain, now + attack + decay);
+  masterGain.gain.setValueAtTime(sustain, now + Math.max(duration - release, attack + decay));
+  masterGain.gain.linearRampToValueAtTime(0, now + duration + release);
+
+  // Vibrato LFO — typical sax: delayed onset (~350ms), ~5.5 Hz, ±8 cents
+  const lfo = audioCtx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 5.5;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.setValueAtTime(0, now);
+  const vibratoDepth = freq * 0.0046; // ±8 cents approx
+  const vibratoOnset = now + 0.35;
+  lfoGain.gain.setValueAtTime(0, vibratoOnset);
+  lfoGain.gain.linearRampToValueAtTime(vibratoDepth, vibratoOnset + 0.18);
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+
+  // Signal chain
+  osc.connect(wshaper);
+  wshaper.connect(formant);
+  formant.connect(shelf);
+  shelf.connect(masterGain);
+  noiseGain.connect(masterGain);
+  masterGain.connect(audioCtx.destination);
+
+  const endTime = now + duration + release + 0.05;
+  osc.start(now);
+  lfo.start(now);
+  noiseSrc.start(now);
+  osc.stop(endTime);
+  lfo.stop(endTime);
 }
 
 // Karplus-Strong plucked string synthesis
