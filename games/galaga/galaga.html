@@ -935,7 +935,7 @@
         { id: 'timewarp', label: 'TIME WARP', color: '#a0f', icon: 'T' },
         { id: 'pierce', label: 'PIERCING SHOT', color: '#ff4', icon: 'P' },
         { id: 'blackhole', label: 'BLACK HOLE', color: '#609', icon: 'O' },
-        { id: 'boomerang', label: 'BOOMERANG', color: '#f55', icon: 'B' },
+        { id: 'boomerang', label: 'BOOMERANG', color: '#f0a', icon: 'B' },
         { id: 'drunk', label: 'DRUNK MISSILES', color: '#5f5', icon: 'D' },
         { id: 'lightning', label: 'CHAIN LIGHTNING', color: '#aef', icon: 'Z' },
         { id: 'gravity', label: 'GRAVITY FLIP', color: '#fa0', icon: 'G' },
@@ -1568,23 +1568,64 @@
         // --- BOOMERANGS ---
         for (let i = boomerangs.length - 1; i >= 0; i--) {
             let bm = boomerangs[i];
-            bm.t += 0.02;
-            // Elliptical path
-            let range = 180 * scale;
-            bm.x = bm.startX + Math.sin(bm.t * Math.PI) * range * bm.dir;
-            bm.y = bm.startY - Math.sin(bm.t * Math.PI) * range * 1.2;
+            bm.life--;
+
+            if (bm.life <= 0) {
+                spawnExplosion(bm.x, bm.y, '#f0a', 2);
+                boomerangs.splice(i, 1);
+                continue;
+            }
+
+            // Find target
+            if (!bm.target || !bm.target.alive) {
+                let closest = null;
+                let bestDist = Infinity;
+                for (let e of enemies) {
+                    if (!e.alive) continue;
+                    let dist = Math.hypot(e.x - bm.x, e.y - bm.y);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        closest = e;
+                    }
+                }
+                bm.target = closest;
+            }
+
+            let speed = 12 * scale;
+            if (bm.target && bm.target.alive) {
+                let angle = Math.atan2(bm.target.y - bm.y, bm.target.x - bm.x);
+                // Aggressive homing
+                bm.vx += (Math.cos(angle) * speed - bm.vx) * 0.25;
+                bm.vy += (Math.sin(angle) * speed - bm.vy) * 0.25;
+            } else {
+                // Home to player if no enemies
+                let hoverY = player.y - player.h * 1.5;
+                let angle = Math.atan2(hoverY - bm.y, player.x - bm.x);
+                bm.vx += (Math.cos(angle) * speed * 0.8 - bm.vx) * 0.15;
+                bm.vy += (Math.sin(angle) * speed * 0.8 - bm.vy) * 0.15;
+            }
+
+            bm.x += bm.vx;
+            bm.y += bm.vy;
+
+            // Cooldowns for hits
+            for (let [e, cd] of bm.hitCooldowns) {
+                if (cd <= 0) bm.hitCooldowns.delete(e);
+                else bm.hitCooldowns.set(e, cd - 1);
+            }
+
             // Hit enemies
             for (let e of enemies) {
-                if (!e.alive || bm.hit.has(e)) continue;
-                if (Math.abs(bm.x - e.x) < e.w * 0.6 + 10 * scale && Math.abs(bm.y - e.y) < e.h * 0.6 + 10 * scale) {
-                    bm.hit.add(e);
-                    e.hp = 0; // boomerang instantly kills
-                    hitEnemy(e);
-                    spawnParticles(e.x, e.y, '#f55', 6, 3);
+                if (!e.alive) continue;
+                if (Math.hypot(e.x - bm.x, e.y - bm.y) < e.w * 0.6 + 15 * scale) {
+                    if (!bm.hitCooldowns.has(e)) {
+                        bm.hitCooldowns.set(e, 10);
+                        e.hp = 0; // instantly kills
+                        hitEnemy(e);
+                        spawnParticles(e.x, e.y, '#f0a', 8, 4);
+                        if (bm.target === e) bm.target = null;
+                    }
                 }
-            }
-            if (bm.t >= 1) {
-                boomerangs.splice(i, 1);
             }
         }
 
@@ -1963,6 +2004,18 @@
             spawnExplosion(player.x, player.y, '#ff0', 3);
             spawnExplosion(player.x, player.y, '#fff', 2);
             spawnExplosion(player.x, player.y, '#f80', 2.5);
+        } else if (type === 'boomerang') {
+            boomerangs = [];
+            boomerangs.push({
+                x: player.x,
+                y: player.y - player.h * 0.5,
+                vx: 0,
+                vy: 0,
+                angle: 0,
+                life: POWERUP_DURATION,
+                target: null,
+                hitCooldowns: new Map() // prevent hitting same enemy multiple times per frame
+            });
         }
         spawnFloatingText(player.x, player.y - 40, label + '!', color);
     }
@@ -2078,15 +2131,11 @@
                 deployed: false
             });
         } else if (currentPowerUp === 'boomerang') {
-            // Fire a boomerang that curves out and comes back
-            boomerangs.push({
+            // Main gun is active while the autonomous boomerang is out
+            bullets.push({
                 x: player.x,
                 y: player.y - player.h * 0.5,
-                startX: player.x,
-                startY: player.y,
-                t: 0,
-                dir: (Math.random() < 0.5) ? -1 : 1,
-                hit: new Set()
+                vy: -8 * scale
             });
         } else if (currentPowerUp === 'drunk') {
             // Fire wobbly zigzag bullets
@@ -2457,17 +2506,36 @@
         for (let bm of boomerangs) {
             ctx.save();
             ctx.translate(bm.x, bm.y);
-            ctx.rotate(bm.t * Math.PI * 6); // spinning
-            ctx.fillStyle = '#f55';
+            bm.angle += 0.5;
+            ctx.rotate(bm.angle);
+
+            // Outer spiked ring (chakram / buzzsaw)
+            ctx.fillStyle = '#f0a';
             ctx.beginPath();
-            ctx.moveTo(0, -10 * scale);
-            ctx.quadraticCurveTo(12 * scale, 0, 0, 4 * scale);
-            ctx.quadraticCurveTo(-12 * scale, 0, 0, -10 * scale);
+            let spikes = 8;
+            let outerRadius = 16 * scale;
+            let innerRadius = 10 * scale;
+            for (let i = 0; i < spikes * 2; i++) {
+                let radius = i % 2 === 0 ? outerRadius : innerRadius;
+                let angle = (i / (spikes * 2)) * Math.PI * 2;
+                if (i === 0) ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+                else ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            }
+            ctx.closePath();
             ctx.fill();
-            ctx.fillStyle = '#faa';
+
+            // Inner glowing ring
+            ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.arc(0, -3 * scale, 2 * scale, 0, Math.PI * 2);
+            ctx.arc(0, 0, 6 * scale, 0, Math.PI * 2);
             ctx.fill();
+
+            // Center hole
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.beginPath();
+            ctx.arc(0, 0, 3 * scale, 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.restore();
         }
 
