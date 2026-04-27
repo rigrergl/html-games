@@ -133,7 +133,7 @@
         // Input state
         const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
-        window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
+        window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) { keys[e.code] = true; startAudio(); } });
         window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
 
         // Touch controls
@@ -143,7 +143,7 @@
         const btnBrake = document.getElementById('btn-brake');
 
         const bindTouch = (btn, key) => {
-            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; btn.classList.add('active'); }, {passive: false});
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; btn.classList.add('active'); startAudio(); }, {passive: false});
             btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; btn.classList.remove('active'); }, {passive: false});
         };
 
@@ -151,6 +151,151 @@
         bindTouch(btnRight, 'ArrowRight');
         bindTouch(btnAccel, 'ArrowUp');
         bindTouch(btnBrake, 'ArrowDown');
+
+        // ── Audio Engine ──────────────────────────────────────────────────────
+        let audioCtx = null, audioReady = false;
+        let engOsc1, engOsc2, engFilter, engGain;
+        let trafficOsc, trafficGain;
+        const prevCarCZ = {};
+
+        function makeDistortionCurve(amount) {
+            const curve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) {
+                const x = i * 2 / 255 - 1;
+                curve[i] = (Math.PI + amount) * x / (Math.PI + amount * Math.abs(x));
+            }
+            return curve;
+        }
+
+        function startAudio() {
+            if (audioReady) return;
+            try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return; }
+
+            // Engine: sawtooth + square sub → lowpass filter → soft clip → gain
+            engOsc1 = audioCtx.createOscillator();
+            engOsc1.type = 'sawtooth';
+            engOsc1.frequency.value = 80;
+
+            engOsc2 = audioCtx.createOscillator();
+            engOsc2.type = 'square';
+            engOsc2.frequency.value = 40;
+
+            const subGain = audioCtx.createGain();
+            subGain.gain.value = 0.55;
+
+            engFilter = audioCtx.createBiquadFilter();
+            engFilter.type = 'lowpass';
+            engFilter.frequency.value = 300;
+            engFilter.Q.value = 4;
+
+            const clipper = audioCtx.createWaveShaper();
+            clipper.curve = makeDistortionCurve(200);
+            clipper.oversample = '2x';
+
+            engGain = audioCtx.createGain();
+            engGain.gain.value = 0.12;
+
+            engOsc2.connect(subGain); subGain.connect(engFilter);
+            engOsc1.connect(engFilter);
+            engFilter.connect(clipper);
+            clipper.connect(engGain);
+            engGain.connect(audioCtx.destination);
+            engOsc1.start(); engOsc2.start();
+
+            // Traffic ambient: sawtooth → bandpass → gain
+            trafficOsc = audioCtx.createOscillator();
+            trafficOsc.type = 'sawtooth';
+            trafficOsc.frequency.value = 100;
+
+            const trafficFilter = audioCtx.createBiquadFilter();
+            trafficFilter.type = 'bandpass';
+            trafficFilter.frequency.value = 650;
+            trafficFilter.Q.value = 1.2;
+
+            trafficGain = audioCtx.createGain();
+            trafficGain.gain.value = 0;
+
+            trafficOsc.connect(trafficFilter);
+            trafficFilter.connect(trafficGain);
+            trafficGain.connect(audioCtx.destination);
+            trafficOsc.start();
+
+            audioReady = true;
+        }
+
+        function updateEngineAudio(sp, accelDown) {
+            if (!audioReady) return;
+            const t = audioCtx.currentTime;
+            const freq = 70 + sp * 210;
+            engOsc1.frequency.setTargetAtTime(freq, t, 0.07);
+            engOsc2.frequency.setTargetAtTime(freq * 0.5, t, 0.07);
+            engFilter.frequency.setTargetAtTime(200 + sp * 2800, t, 0.07);
+            const vol = 0.06 + sp * 0.25 + (accelDown ? 0.04 : 0);
+            engGain.gain.setTargetAtTime(Math.min(vol, 0.38), t, 0.07);
+        }
+
+        function updateTrafficAudio() {
+            if (!audioReady) return;
+            let nearest = Infinity;
+            for (const car of trafficCars) {
+                let cz = car.z - position;
+                if (cz < 0) cz += TRACK_TOTAL;
+                if (cz < 50 * segmentLength) nearest = Math.min(nearest, cz);
+            }
+            const prox = nearest < 50 * segmentLength ? 1 - nearest / (50 * segmentLength) : 0;
+            const t = audioCtx.currentTime;
+            trafficGain.gain.setTargetAtTime(prox * 0.22, t, 0.12);
+            trafficOsc.frequency.setTargetAtTime(85 + prox * 110, t, 0.1);
+        }
+
+        function playWhoosh() {
+            if (!audioReady) return;
+            const sr = audioCtx.sampleRate;
+            const buf = audioCtx.createBuffer(1, sr * 0.35, sr);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            const src = audioCtx.createBufferSource();
+            src.buffer = buf;
+            const filt = audioCtx.createBiquadFilter();
+            filt.type = 'bandpass'; filt.frequency.value = 1400; filt.Q.value = 0.7;
+            const g = audioCtx.createGain();
+            const now = audioCtx.currentTime;
+            g.gain.setValueAtTime(0, now);
+            g.gain.linearRampToValueAtTime(0.32, now + 0.04);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+            src.start();
+        }
+
+        function playCrash() {
+            if (!audioReady) return;
+            const sr = audioCtx.sampleRate;
+            const buf = audioCtx.createBuffer(1, sr * 0.7, sr);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < d.length; i++) {
+                d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.12));
+            }
+            const src = audioCtx.createBufferSource();
+            src.buffer = buf;
+            const filt = audioCtx.createBiquadFilter();
+            filt.type = 'lowpass'; filt.frequency.value = 900;
+            const g = audioCtx.createGain(); g.gain.value = 0.75;
+            src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+            src.start();
+        }
+
+        function detectPassbys() {
+            if (!audioReady || speed < maxSpeed * 0.08) return;
+            trafficCars.forEach((car, i) => {
+                let cz = car.z - position;
+                if (cz < 0) cz += TRACK_TOTAL;
+                const prev = prevCarCZ[i];
+                if (prev !== undefined && prev < 4 * segmentLength && cz > TRACK_TOTAL * 0.94) {
+                    playWhoosh();
+                }
+                prevCarCZ[i] = cz;
+            });
+        }
 
         // Track building
         function resetRoad() {
@@ -346,6 +491,7 @@
                         crashTimer = 1.5;
                         crashes++;
                         speed *= 0.2;
+                        playCrash();
                         break;
                     }
                 }
@@ -355,6 +501,11 @@
             score += speed * dt / 100;
 
             scoreBoard.innerHTML = `SPEED: ${Math.round(speed / maxSpeed * 150)} MPH<br>SCORE: ${Math.floor(score)}<br>CRASHES: ${crashes}`;
+
+            const sp = speed / maxSpeed;
+            updateEngineAudio(sp, keys.ArrowUp);
+            updateTrafficAudio();
+            detectPassbys();
         }
 
         // Render loop
