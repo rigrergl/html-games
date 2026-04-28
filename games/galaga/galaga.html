@@ -42,7 +42,7 @@
             overflow: hidden;
         }
 
-        canvas {
+        canvas#c {
             display: block;
             position: absolute;
             top: 0;
@@ -328,13 +328,8 @@
         <p>Drag left/right to move</p>
         <p>Ship auto-fires!</p>
         <p>Grab power-ups for special weapons!</p>
-        <div id="shipSelector" style="display:flex; align-items:center; justify-content:center; gap:10px; margin:20px 0; z-index: 20;">
-            <button id="prevShip" class="btn" style="padding:10px; margin:0; z-index: 20;">&lt;</button>
-            <div style="display:flex; flex-direction:column; align-items:center; width: 160px; z-index: 20;">
-                <canvas id="shipPreviewCanvas" width="64" height="64" style="image-rendering: pixelated;"></canvas>
-                <span id="shipName" style="font-size: 10px; margin-top:10px; height: 10px;">CLASSIC</span>
-            </div>
-            <button id="nextShip" class="btn" style="padding:10px; margin:0; z-index: 20;">&gt;</button>
+        <div id="shipSelector" style="display:flex; align-items:center; justify-content:center; margin:20px 0; z-index: 20;">
+            <button class="btn" id="openCustomizationBtn" style="padding: 15px 30px; font-size: clamp(12px, 3.5vw, 20px);">CUSTOMIZE SHIP</button>
         </div>
         <div class="coin-slot-container" id="startBtn">
             <div class="insert-coin-text">INSERT COIN</div>
@@ -343,6 +338,33 @@
             </div>
             <div class="coin" id="coinAnim"></div>
         </div>
+    </div>
+
+    <div id="customizationScreen" style="display:none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.95); z-index: 30; color: #fff; text-align: center; padding: 20px;">
+        <h2 style="font-size: clamp(24px, 6vw, 40px); color: #0ff; text-shadow: 0 0 10px #0ff; margin-bottom: 30px;">HANGAR</h2>
+
+        <div style="display:flex; align-items:center; justify-content:center; gap:20px; margin-bottom: 20px;">
+            <button id="prevModelBtn" class="btn" style="padding:15px; margin:0;">&lt;</button>
+            <div style="display:flex; flex-direction:column; align-items:center; width: 200px;">
+                <canvas id="customShipCanvas" width="128" height="128" style="image-rendering: pixelated; margin-bottom: 15px; border: 2px solid #333; border-radius: 8px; background: #111;"></canvas>
+                <span id="customShipName" style="font-size: clamp(12px, 3vw, 18px); color: #ff0;">CLASSIC</span>
+                <span id="customShipStatus" style="font-size: 10px; color: #aaa; margin-top: 5px; height: 12px;"></span>
+            </div>
+            <button id="nextModelBtn" class="btn" style="padding:15px; margin:0;">&gt;</button>
+        </div>
+
+        <div id="colorPickers" style="display:flex; gap: 30px; margin-bottom: 40px; align-items: center;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap: 10px;">
+                <label style="font-size: 10px; color: #aaa;">PRIMARY</label>
+                <input type="color" id="primaryColorInput" value="#ffffff" style="width: 50px; height: 50px; padding: 0; border: 2px solid #555; border-radius: 5px; cursor: pointer; background: transparent;">
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap: 10px;">
+                <label style="font-size: 10px; color: #aaa;">SECONDARY</label>
+                <input type="color" id="secondaryColorInput" value="#ff0000" style="width: 50px; height: 50px; padding: 0; border: 2px solid #555; border-radius: 5px; cursor: pointer; background: transparent;">
+            </div>
+        </div>
+
+        <button class="btn" id="closeCustomizationBtn" style="font-size: clamp(12px, 3.5vw, 20px);">BACK TO MENU</button>
     </div>
 
     <div id="gameOverScreen" style="display:none">
@@ -377,6 +399,8 @@
         // --- PIXEL ART SPRITES ---
     const SPRITE_PALETTE = {
         '.': null,
+        '1': '#ffffff', // Primary color (default)
+        '2': '#ff0000', // Secondary color (default)
         'W': '#ffffff', // White
         'R': '#ff0000', // Red
         'G': '#00ff00', // Green
@@ -390,86 +414,86 @@
         'P': '#ffb6c1'  // Pink
     };
 
-    const SHIPS = [
-        { id: 'classic', name: 'CLASSIC', sprite: 'ship', reqScore: 0, color: '#ffffff' },
-        { id: 'red', name: 'CRIMSON', sprite: 'shipRed', reqScore: 5000, color: '#ff0000' },
-        { id: 'gold', name: 'AURUM', sprite: 'shipGold', reqScore: 15000, color: '#ffff00' },
-        { id: 'blue', name: 'COBALT', sprite: 'shipBlue', reqScore: 30000, color: '#00ffff' }
+    const SHIP_MODELS = [
+        { id: 'classic', name: 'CLASSIC', sprite: 'modelClassic', reqScore: 0, defaultColor1: '#ffffff', defaultColor2: '#ff0000' },
+        { id: 'interceptor', name: 'INTERCEPTOR', sprite: 'modelInterceptor', reqScore: 5000, defaultColor1: '#00ffff', defaultColor2: '#ff00ff' },
+        { id: 'bomber', name: 'BOMBER', sprite: 'modelBomber', reqScore: 15000, defaultColor1: '#ffa500', defaultColor2: '#555555' },
+        { id: 'ghost', name: 'GHOST', sprite: 'modelGhost', reqScore: 30000, defaultColor1: '#555555', defaultColor2: '#00ff00' }
     ];
     let selectedShipIndex = 0;
     let isShipUnlocked = true;
 
     const SPRITES = {
-        ship: [
+        modelClassic: [
             ".......L........",
             "......LCL.......",
             "......LCL.......",
             ".....LLLLL......",
-            "....R.LCL.R.....",
+            "....2.LCL.2.....",
             "...LL.LCL.LL....",
             "...LLDDDDDLL....",
             "...LLDDDDDLL....",
             "..LLL.DD.LLL....",
             "..LLL....LLL....",
-            ".WLLL....LLLW...",
-            ".WWLL....LLWW...",
-            "WWWW......WWWW..",
-            "R..R......R..R..",
+            ".1LLL....LLL1...",
+            ".11LL....LL11...",
+            "1111......1111..",
+            "2..2......2..2..",
             "................",
             "................"
         ],
-        shipRed: [
-            ".......L........",
-            "......LCL.......",
-            "......LCL.......",
-            ".....LLLLL......",
-            "....R.LCL.R.....",
-            "...LL.LCL.LL....",
-            "...LLDDDDDLL....",
-            "...LLDDDDDLL....",
-            "..LLL.DD.LLL....",
-            "..LLL....LLL....",
-            ".RLLL....LLLR...",
-            ".RRLL....LLRR...",
-            "RRRR......RRRR..",
-            "R..R......R..R..",
+        modelInterceptor: [
+            ".......D........",
+            ".......D........",
+            "......DCD.......",
+            "......DCD.......",
+            ".....DD1DD......",
+            ".....D111D......",
+            "....DD111DD.....",
+            "...D.22122.D....",
+            "..DD.22122.DD...",
+            "..DD.11111.DD...",
+            ".D2D..111..D2D..",
+            "D22D..111..D22D.",
+            "D22D...1...D22D.",
+            "D..D.......D..D.",
             "................",
             "................"
         ],
-        shipGold: [
+        modelBomber: [
             ".......L........",
             "......LCL.......",
-            "......LCL.......",
-            ".....LLLLL......",
-            "....R.LCL.R.....",
-            "...LL.LCL.LL....",
-            "...LLDDDDDLL....",
-            "...LLDDDDDLL....",
-            "..LLL.DD.LLL....",
-            "..LLL....LLL....",
-            ".YLLL....LLLY...",
-            ".YYLL....LLYY...",
-            "YYYY......YYYY..",
-            "R..R......R..R..",
+            ".....L111L......",
+            "....LL111LL.....",
+            "...2L11111L2....",
+            "...2LLLLLLL2....",
+            "..22LDDDDDL22...",
+            "..22L11111L22...",
+            ".222L11111L222..",
+            ".222LL111LL222..",
+            "2222..LLL..2222.",
+            "2222.......2222.",
+            "2222.......2222.",
+            "L..L.......L..L.",
             "................",
             "................"
         ],
-        shipBlue: [
+        modelGhost: [
             ".......L........",
             "......LCL.......",
-            "......LCL.......",
-            ".....LLLLL......",
-            "....R.LCL.R.....",
-            "...LL.LCL.LL....",
-            "...LLDDDDDLL....",
-            "...LLDDDDDLL....",
-            "..LLL.DD.LLL....",
-            "..LLL....LLL....",
-            ".CLLL....LLLC...",
-            ".CCLL....LLCC...",
-            "CCCC......CCCC..",
-            "R..R......R..R..",
-            "................",
+            ".....LL1LL......",
+            ".....L111L......",
+            "....LL111LL.....",
+            "....L11111L.....",
+            "...LL11111LL....",
+            "...L1111111L....",
+            "..2L1221221L2...",
+            "..2L1111111L2...",
+            ".22LL11111LL22..",
+            ".22.LL111LL.22..",
+            "222..LL1LL..222.",
+            "22....LLL....22.",
+            ".......L........",
             "................"
         ],
         shipFlame1: [
@@ -588,8 +612,73 @@
 
     let renderedSprites = {};
 
+    let userShipSettings = {
+        modelIndex: 0,
+        colors: {} // Format: { "classic": { c1: "#fff", c2: "#f00" } }
+    };
+
+    function loadSettings() {
+        try {
+            let saved = localStorage.getItem('galagaShipSettings');
+            if (saved) {
+                let parsed = JSON.parse(saved);
+                if (parsed && typeof parsed.modelIndex === 'number') {
+                    userShipSettings = parsed;
+                }
+            }
+        } catch(e) {}
+
+        // Ensure default colors exist for all models
+        SHIP_MODELS.forEach(m => {
+            if (!userShipSettings.colors[m.id]) {
+                userShipSettings.colors[m.id] = { c1: m.defaultColor1, c2: m.defaultColor2 };
+            }
+        });
+    }
+
+    function saveSettings() {
+        if (!isDebugMode) {
+            localStorage.setItem('galagaShipSettings', JSON.stringify(userShipSettings));
+        }
+    }
+
+    loadSettings();
+
+    function renderCustomShipSprite(modelIndex) {
+        let ship = SHIP_MODELS[modelIndex];
+        let art = SPRITES[ship.sprite];
+        let cols = art[0].length;
+        let rows = art.length;
+        let c1 = userShipSettings.colors[ship.id].c1;
+        let c2 = userShipSettings.colors[ship.id].c2;
+
+        let sc = document.createElement('canvas');
+        sc.width = cols;
+        sc.height = rows;
+        let sctx = sc.getContext('2d');
+        sctx.imageSmoothingEnabled = false;
+
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                let char = art[y][x];
+                let color = SPRITE_PALETTE[char];
+                if (char === '1') color = c1;
+                else if (char === '2') color = c2;
+
+                if (color) {
+                    sctx.fillStyle = color;
+                    sctx.fillRect(x, y, 1, 1);
+                }
+            }
+        }
+        return { canvas: sc, w: cols, h: rows };
+    }
+
     function initSprites() {
         for (let key in SPRITES) {
+            // Skip model rendering here since they need custom color mapping. We do it in renderCustomShipSprite.
+            if (key.startsWith('model')) continue;
+
             let art = SPRITES[key];
             let cols = art[0].length;
             let rows = art.length;
@@ -617,6 +706,9 @@
                 h: rows
             };
         }
+
+        // Initial render of the custom ship
+        renderedSprites.playerShip = renderCustomShipSprite(userShipSettings.modelIndex);
     }
 
     function getViewportHeight() { return window.innerHeight; }
@@ -1028,7 +1120,6 @@
         H = canvas.height = getViewportHeight();
         if (Object.keys(renderedSprites).length === 0) {
             initSprites();
-            updateShipPreview();
         }
         canvas.style.width = '100%';
         canvas.style.height = '100%';
@@ -1063,8 +1154,13 @@
         // Turn off smoothing for pixel art
         ctx.imageSmoothingEnabled = false;
 
+        // Ensure playerShip sprite is rendered if missing
+        if (!renderedSprites.playerShip) {
+             renderedSprites.playerShip = renderCustomShipSprite(userShipSettings.modelIndex);
+        }
+
         // Draw player sprite
-        let sprite = renderedSprites[SHIPS[selectedShipIndex].sprite] || renderedSprites.ship;
+        let sprite = renderedSprites.playerShip;
         if (sprite) {
             ctx.drawImage(sprite.canvas, -w/2, -h/2, w, h);
         }
@@ -2982,61 +3078,105 @@
         if (keys[' ']) fire();
     }, 16);
 
-    function updateShipPreview() {
-        const previewCanvas = document.getElementById('shipPreviewCanvas');
+
+
+    function updateCustomizationUI() {
+        const previewCanvas = document.getElementById('customShipCanvas');
         if (!previewCanvas) return;
         const pctx = previewCanvas.getContext('2d');
-        const shipNameEl = document.getElementById('shipName');
+        const shipNameEl = document.getElementById('customShipName');
+        const shipStatusEl = document.getElementById('customShipStatus');
+        const c1Input = document.getElementById('primaryColorInput');
+        const c2Input = document.getElementById('secondaryColorInput');
 
         pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
 
-        const ship = SHIPS[selectedShipIndex];
+        const ship = SHIP_MODELS[userShipSettings.modelIndex];
         const isUnlocked = hiScore >= ship.reqScore || isDebugMode;
+
+        // Only update globals when we are actually playing with this ship, but for now we set a flag.
         isShipUnlocked = isUnlocked;
 
+        shipNameEl.textContent = ship.name;
+
         if (isUnlocked) {
-            shipNameEl.textContent = ship.name;
-            shipNameEl.style.color = ship.color;
+            shipStatusEl.textContent = "UNLOCKED";
+            shipStatusEl.style.color = '#0f0';
             pctx.globalAlpha = 1.0;
+            c1Input.disabled = false;
+            c2Input.disabled = false;
+            c1Input.style.opacity = 1;
+            c2Input.style.opacity = 1;
         } else {
-            shipNameEl.textContent = `LOCKED (SCORE: ${formatScore(ship.reqScore)})`;
-            shipNameEl.style.color = '#777';
-            pctx.globalAlpha = 0.2; // Draw dark/locked
+            shipStatusEl.textContent = `LOCKED (SCORE: ${formatScore(ship.reqScore)})`;
+            shipStatusEl.style.color = '#f00';
+            pctx.globalAlpha = 0.2;
+            c1Input.disabled = true;
+            c2Input.disabled = true;
+            c1Input.style.opacity = 0.3;
+            c2Input.style.opacity = 0.3;
         }
 
-        // Draw ship sprite on preview canvas
+        c1Input.value = userShipSettings.colors[ship.id].c1;
+        c2Input.value = userShipSettings.colors[ship.id].c2;
+
         pctx.imageSmoothingEnabled = false;
-        let sprite = renderedSprites[ship.sprite];
+        let sprite = renderCustomShipSprite(userShipSettings.modelIndex);
         if (sprite && sprite.canvas) {
-            // Center and scale up (canvas is 64x64, sprite is 16x16)
-            let scaleFactor = 4;
+            let scaleFactor = 8; // 16x16 -> 128x128
             let sw = sprite.w * scaleFactor;
             let sh = sprite.h * scaleFactor;
             pctx.drawImage(sprite.canvas, (previewCanvas.width - sw) / 2, (previewCanvas.height - sh) / 2, sw, sh);
         }
     }
 
-    document.getElementById('prevShip').addEventListener('click', function(e) {
+    // Customization Screen Events
+    document.getElementById('openCustomizationBtn').addEventListener('click', function(e) {
         e.preventDefault(); e.stopPropagation();
-        selectedShipIndex = (selectedShipIndex - 1 + SHIPS.length) % SHIPS.length;
-        updateShipPreview();
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('customizationScreen').style.display = 'flex';
+        updateCustomizationUI();
     });
-    document.getElementById('prevShip').addEventListener('touchstart', function(e) {
-        e.preventDefault(); e.stopPropagation();
-        selectedShipIndex = (selectedShipIndex - 1 + SHIPS.length) % SHIPS.length;
-        updateShipPreview();
-    }, {passive: false});
 
-    document.getElementById('nextShip').addEventListener('click', function(e) {
+    document.getElementById('closeCustomizationBtn').addEventListener('click', function(e) {
         e.preventDefault(); e.stopPropagation();
-        selectedShipIndex = (selectedShipIndex + 1) % SHIPS.length;
-        updateShipPreview();
+
+        // If they locked the ship but close it, revert to Classic (index 0) to prevent playing locked ship
+        if (hiScore < SHIP_MODELS[userShipSettings.modelIndex].reqScore && !isDebugMode) {
+             userShipSettings.modelIndex = 0;
+        }
+
+        saveSettings();
+        document.getElementById('customizationScreen').style.display = 'none';
+        document.getElementById('startScreen').style.display = 'flex';
+        isShipUnlocked = true; // since it defaults to classic if locked
+        // We re-render sprites in case colors changed so the game loop has them
+        renderedSprites.playerShip = renderCustomShipSprite(userShipSettings.modelIndex);
     });
-    document.getElementById('nextShip').addEventListener('touchstart', function(e) {
+
+    document.getElementById('prevModelBtn').addEventListener('click', function(e) {
         e.preventDefault(); e.stopPropagation();
-        selectedShipIndex = (selectedShipIndex + 1) % SHIPS.length;
-        updateShipPreview();
-    }, {passive: false});
+        userShipSettings.modelIndex = (userShipSettings.modelIndex - 1 + SHIP_MODELS.length) % SHIP_MODELS.length;
+        updateCustomizationUI();
+    });
+
+    document.getElementById('nextModelBtn').addEventListener('click', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        userShipSettings.modelIndex = (userShipSettings.modelIndex + 1) % SHIP_MODELS.length;
+        updateCustomizationUI();
+    });
+
+    document.getElementById('primaryColorInput').addEventListener('input', function(e) {
+        let shipId = SHIP_MODELS[userShipSettings.modelIndex].id;
+        userShipSettings.colors[shipId].c1 = e.target.value;
+        updateCustomizationUI();
+    });
+
+    document.getElementById('secondaryColorInput').addEventListener('input', function(e) {
+        let shipId = SHIP_MODELS[userShipSettings.modelIndex].id;
+        userShipSettings.colors[shipId].c2 = e.target.value;
+        updateCustomizationUI();
+    });
 
 
     function handleStartClick(e) {
@@ -3070,8 +3210,8 @@
     function handleChangeShipClick(e) {
         e.preventDefault();
         document.getElementById('gameOverScreen').style.display = 'none';
-        document.getElementById('startScreen').style.display = 'flex';
-        updateShipPreview();
+        document.getElementById('customizationScreen').style.display = 'flex';
+        updateCustomizationUI();
     }
     document.getElementById('changeShipBtn').addEventListener('click', handleChangeShipClick);
     document.getElementById('changeShipBtn').addEventListener('touchend', handleChangeShipClick);
