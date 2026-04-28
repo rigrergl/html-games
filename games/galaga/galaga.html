@@ -307,7 +307,10 @@
     <canvas id="c"></canvas>
 
     <div id="hud">
-        <span id="scoreHud">SCORE: 0</span>
+        <div style="display:flex; flex-direction:column; gap:5px;">
+            <span id="scoreHud">SCORE: 0</span>
+            <span id="hiScoreHud" style="color: #ff0; font-size: 0.8em;">HI-SCORE: 0</span>
+        </div>
         <span id="stageHud">STAGE 1</span>
         <span id="lives">♥♥♥</span>
         <span id="muteBtn">♫</span>
@@ -325,6 +328,7 @@
 
     <div id="startScreen">
         <h1>GALAGA</h1>
+        <p id="startHiScoreText" style="color: #ff0; font-size: clamp(14px, 4vw, 20px); text-shadow: 0 0 10px #ff0; margin-bottom: 20px;">HI-SCORE: 0</p>
         <p>Drag left/right to move</p>
         <p>Ship auto-fires!</p>
         <p>Grab power-ups for special weapons!</p>
@@ -341,7 +345,8 @@
     </div>
 
     <div id="customizationScreen" style="display:none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.95); z-index: 30; color: #fff; text-align: center; padding: 20px;">
-        <h2 style="font-size: clamp(24px, 6vw, 40px); color: #0ff; text-shadow: 0 0 10px #0ff; margin-bottom: 30px;">HANGAR</h2>
+        <h2 style="font-size: clamp(24px, 6vw, 40px); color: #0ff; text-shadow: 0 0 10px #0ff; margin-bottom: 10px;">HANGAR</h2>
+        <p id="customHiScoreText" style="color: #ff0; font-size: clamp(14px, 4vw, 20px); text-shadow: 0 0 10px #ff0; margin-bottom: 20px;">HI-SCORE: 0</p>
 
         <div id="shipGrid" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:20px; margin-bottom: 20px; max-width: 800px; max-height: 50vh; overflow-y: auto;">
         </div>
@@ -409,14 +414,14 @@
 
     const SHIP_MODELS = [
         { id: 'classic', name: 'CLASSIC', sprite: 'modelClassic', reqScore: 0, defaultColor1: '#ffffff', defaultColor2: '#ff0000' },
-        { id: 'interceptor', name: 'INTERCEPTOR', sprite: 'modelInterceptor', reqScore: 5000, defaultColor1: '#00ffff', defaultColor2: '#ff00ff' },
-        { id: 'bomber', name: 'BOMBER', sprite: 'modelBomber', reqScore: 15000, defaultColor1: '#ffa500', defaultColor2: '#555555' },
-        { id: 'ghost', name: 'GHOST', sprite: 'modelGhost', reqScore: 30000, defaultColor1: '#555555', defaultColor2: '#00ff00' },
-        { id: 'phoenix', name: 'PHOENIX', sprite: 'modelPhoenix', reqScore: 50000, defaultColor1: '#ff4500', defaultColor2: '#ffd700' },
-        { id: 'dragon', name: 'DRAGON', sprite: 'modelDragon', reqScore: 80000, defaultColor1: '#00ff00', defaultColor2: '#ff0000' },
-        { id: 'stryker', name: 'STRYKER', sprite: 'modelStryker', reqScore: 120000, defaultColor1: '#ff00ff', defaultColor2: '#00ffff' },
-        { id: 'voidwalker', name: 'VOIDWALKER', sprite: 'modelVoidwalker', reqScore: 180000, defaultColor1: '#4b0082', defaultColor2: '#8a2be2' },
-        { id: 'leviathan', name: 'LEVIATHAN', sprite: 'modelLeviathan', reqScore: 250000, defaultColor1: '#000080', defaultColor2: '#00ced1' }
+        { id: 'interceptor', name: 'INTERCEPTOR', sprite: 'modelInterceptor', reqScore: 50000, defaultColor1: '#00ffff', defaultColor2: '#ff00ff' },
+        { id: 'bomber', name: 'BOMBER', sprite: 'modelBomber', reqScore: 150000, defaultColor1: '#ffa500', defaultColor2: '#555555' },
+        { id: 'ghost', name: 'GHOST', sprite: 'modelGhost', reqScore: 300000, defaultColor1: '#555555', defaultColor2: '#00ff00' },
+        { id: 'phoenix', name: 'PHOENIX', sprite: 'modelPhoenix', reqScore: 500000, defaultColor1: '#ff4500', defaultColor2: '#ffd700' },
+        { id: 'dragon', name: 'DRAGON', sprite: 'modelDragon', reqScore: 800000, defaultColor1: '#00ff00', defaultColor2: '#ff0000' },
+        { id: 'stryker', name: 'STRYKER', sprite: 'modelStryker', reqScore: 1200000, defaultColor1: '#ff00ff', defaultColor2: '#00ffff' },
+        { id: 'voidwalker', name: 'VOIDWALKER', sprite: 'modelVoidwalker', reqScore: 1600000, defaultColor1: '#4b0082', defaultColor2: '#8a2be2' },
+        { id: 'leviathan', name: 'LEVIATHAN', sprite: 'modelLeviathan', reqScore: 2000000, defaultColor1: '#000080', defaultColor2: '#00ced1' }
     ];
     let selectedShipIndex = 0;
     let isShipUnlocked = true;
@@ -1174,8 +1179,26 @@
 
     // Score formatting helper
     function formatScore(n) { return n.toLocaleString(); }
+
+    function updateHiScoreDisplays() {
+        const formatted = 'HI-SCORE: ' + formatScore(hiScore);
+        const startText = document.getElementById('startHiScoreText');
+        const customText = document.getElementById('customHiScoreText');
+        const hudText = document.getElementById('hiScoreHud');
+        if (startText) startText.textContent = formatted;
+        if (customText) customText.textContent = formatted;
+        if (hudText) hudText.textContent = formatted;
+    }
+
     function updateScoreHud() {
         document.getElementById('scoreHud').textContent = 'SCORE: ' + formatScore(score);
+        if (score > hiScore) {
+            hiScore = score;
+            if (!isDebugMode) {
+                localStorage.setItem('galagaHi', hiScore);
+            }
+            updateHiScoreDisplays();
+        }
     }
 
     // Power-up definitions
@@ -3104,12 +3127,6 @@
         Sound.gameOverSound();
         if (autoFireInterval) { clearInterval(autoFireInterval); autoFireInterval = null; }
         if (animId) { cancelAnimationFrame(animId); animId = null; }
-        if (score > hiScore) {
-            hiScore = score;
-            if (!isDebugMode) {
-                localStorage.setItem('galagaHi', hiScore);
-            }
-        }
         document.getElementById('finalScore').textContent = 'SCORE: ' + formatScore(score);
         document.getElementById('hiScoreText').textContent = 'HI-SCORE: ' + formatScore(hiScore);
         document.getElementById('gameOverScreen').style.display = 'flex';
@@ -3392,6 +3409,7 @@
         updateDebugUI();
     }
 
+    updateHiScoreDisplays();
     draw();
 
 })();
