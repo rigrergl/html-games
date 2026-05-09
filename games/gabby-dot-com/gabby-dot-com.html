@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabby Dot Com</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        :root {
+            /* Punkish pastel pink background */
+            --bg-color: #ffb6c1;
+            /* Black text for high contrast (passes WCAG AAA) */
+            --text-color: #000000;
+            --nav-bg: #000000;
+            --nav-text: #ffb6c1;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scroll when knocking elements */
+            cursor: crosshair; /* Cute crosshair or something */
+        }
+
+        /* Navigation Bar */
+        #nav-container {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background-color: var(--nav-bg);
+            color: var(--nav-text);
+            z-index: 1000;
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            transform-origin: top left;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .nav-logo {
+            font-size: 24px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            color: var(--nav-text);
+            text-decoration: none;
+            font-weight: 700;
+            transition: opacity 0.2s;
+        }
+
+        .nav-links a:hover {
+            opacity: 0.7;
+        }
+
+        /* Content Sections */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 50px 30px;
+        }
+
+        .hero {
+            height: 60vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            line-height: 1.1;
+        }
+
+        .hero p {
+            font-size: 1.5rem;
+            max-width: 600px;
+        }
+
+        /* Canvas Overlay for Cat and Twinkles */
+        #gameCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through */
+            z-index: 9999;
+        }
+
+        /* Reset Button */
+        #reset-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background-color: var(--nav-bg);
+            color: var(--nav-text);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 30px;
+            cursor: pointer;
+            z-index: 10000;
+            display: none; /* Hidden by default */
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+
+        #reset-btn:hover {
+            transform: scale(1.1) rotate(45deg);
+        }
+
+        /* Destruction Classes */
+        .knocked-down {
+            transform: translateY(200px) rotate(15deg) !important;
+            pointer-events: none;
+        }
+
+        /* Mobile specific styles */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            .hero p {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="nav-container">
+        <div class="nav-content">
+            <div class="nav-logo">Gabby Dot Com</div>
+            <div class="nav-links">
+                <a href="#about">About</a>
+                <a href="#work">Work</a>
+                <a href="#contact">Contact</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="hero" id="about">
+            <h1>Creative.<br>Professional.<br>Mischievous.</h1>
+            <p>Welcome to my corner of the internet. Watch out for the cat, she likes to break things.</p>
+        </section>
+
+        <section id="work" style="height: 500px;">
+            <h2>Recent Work</h2>
+            <p>I build cute and functional things. Scroll around to see what I mean.</p>
+        </section>
+
+        <section id="contact" style="height: 500px;">
+            <h2>Get In Touch</h2>
+            <p>Want to work together? Let's chat.</p>
+        </section>
+    </div>
+
+    <button id="reset-btn" title="Fix the website">⟲</button>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let width, height;
+
+            function resizeCanvas() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+            }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // Twinkle System
+            const twinkles = [];
+            const NUM_TWINKLES = 50;
+
+            function initTwinkles() {
+                for (let i = 0; i < NUM_TWINKLES; i++) {
+                    twinkles.push({
+                        x: Math.random() * width,
+                        y: Math.random() * height,
+                        size: Math.random() * 2 + 1,
+                        alpha: Math.random(),
+                        speed: (Math.random() * 0.02) + 0.005,
+                        fadingOut: Math.random() > 0.5
+                    });
+                }
+            }
+
+            function drawTwinkles() {
+                for (let t of twinkles) {
+                    if (t.fadingOut) {
+                        t.alpha -= t.speed;
+                        if (t.alpha <= 0) {
+                            t.alpha = 0;
+                            t.fadingOut = false;
+                            // Reset position randomly
+                            t.x = Math.random() * width;
+                            t.y = Math.random() * height;
+                        }
+                    } else {
+                        t.alpha += t.speed;
+                        if (t.alpha >= 1) {
+                            t.alpha = 1;
+                            t.fadingOut = true;
+                        }
+                    }
+
+                    ctx.save();
+                    ctx.fillStyle = `rgba(255, 255, 255, ${t.alpha})`;
+                    ctx.beginPath();
+                    // Draw a simple 4-point star/diamond
+                    ctx.translate(t.x, t.y);
+                    ctx.moveTo(0, -t.size);
+                    ctx.lineTo(t.size/2, -t.size/2);
+                    ctx.lineTo(t.size, 0);
+                    ctx.lineTo(t.size/2, t.size/2);
+                    ctx.lineTo(0, t.size);
+                    ctx.lineTo(-t.size/2, t.size/2);
+                    ctx.lineTo(-t.size, 0);
+                    ctx.lineTo(-t.size/2, -t.size/2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            initTwinkles();
+
+            // Cat System
+            const PIXEL_SIZE = 3;
+            const catEntity = {
+                x: width / 2,
+                y: height / 2,
+                targetX: width / 2,
+                targetY: height / 2,
+                speed: 3,
+                state: 'idle', // idle, walking
+                facingRight: true,
+                frame: 0,
+                frameTimer: 0,
+                frameInterval: 15 // Frames to wait before swapping animation frame
+            };
+
+            const catColors = {
+                base: '#ffffff', // white cat
+                dark: '#333333',
+                belly: '#f0f0f0'
+            };
+
+            // Input Handling
+            window.addEventListener('mousemove', (e) => {
+                catEntity.targetX = e.clientX;
+                catEntity.targetY = e.clientY;
+            });
+
+            window.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    catEntity.targetX = e.touches[0].clientX;
+                    catEntity.targetY = e.touches[0].clientY;
+                }
+            }, {passive: true});
+
+            function updateCat() {
+                // Movement logic
+                const dx = catEntity.targetX - catEntity.x;
+                const dy = catEntity.targetY - catEntity.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist > 5) {
+                    catEntity.state = 'walking';
+                    catEntity.x += (dx / dist) * catEntity.speed;
+                    catEntity.y += (dy / dist) * catEntity.speed;
+
+                    if (dx > 0) catEntity.facingRight = true;
+                    else if (dx < 0) catEntity.facingRight = false;
+
+                    catEntity.isNearTarget = false;
+                } else {
+                    catEntity.state = 'idle';
+
+                    if (!catEntity.isNearTarget) {
+                        catEntity.isNearTarget = true;
+                        checkForDestruction();
+                    }
+                }
+
+                // Animation frame
+                if (catEntity.state === 'walking') {
+                    catEntity.frameTimer++;
+                    if (catEntity.frameTimer >= catEntity.frameInterval) {
+                        catEntity.frame = (catEntity.frame + 1) % 2;
+                        catEntity.frameTimer = 0;
+                    }
+                } else {
+                    catEntity.frame = 0;
+                    catEntity.frameTimer = 0;
+                }
+            }
+
+            function drawCat() {
+                ctx.save();
+                ctx.translate(catEntity.x, catEntity.y);
+
+                if (!catEntity.facingRight) {
+                    ctx.scale(-1, 1);
+                }
+
+                let bopY = 0;
+                if (catEntity.state === 'walking') {
+                    bopY = catEntity.frame === 0 ? -2 : 0;
+                }
+
+                ctx.translate(0, bopY);
+
+                const p = PIXEL_SIZE;
+
+                // Tail
+                ctx.fillStyle = catColors.dark;
+                if (catEntity.state === 'walking') {
+                    ctx.fillRect(-8*p, (catEntity.frame === 0 ? -3 : -4)*p, 2*p, 6*p);
+                } else {
+                    ctx.fillRect(-8*p, -3*p, 2*p, 6*p);
+                }
+
+                // Body
+                ctx.fillStyle = catColors.base;
+                ctx.fillRect(-6*p, -2*p, 10*p, 6*p);
+
+                // Belly
+                ctx.fillStyle = catColors.belly;
+                ctx.fillRect(-4*p, 2*p, 6*p, 2*p);
+
+                // Legs
+                ctx.fillStyle = catColors.dark;
+                if (catEntity.state === 'walking') {
+                    const swing = catEntity.frame === 0 ? 1 : -1;
+                    ctx.fillRect(-5*p + swing*p, 4*p, 2*p, 2*p); // Back
+                    ctx.fillRect(1*p - swing*p, 4*p, 2*p, 2*p); // Front
+                } else {
+                    ctx.fillRect(-5*p, 4*p, 2*p, 2*p);
+                    ctx.fillRect(1*p, 4*p, 2*p, 2*p);
+                }
+
+                // Head
+                ctx.fillStyle = catColors.base;
+                ctx.fillRect(2*p, -4*p, 6*p, 5*p);
+
+                // Ears
+                ctx.fillStyle = catColors.dark;
+                ctx.fillRect(2*p, -6*p, 2*p, 2*p);
+                ctx.fillRect(6*p, -6*p, 2*p, 2*p);
+
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.fillRect(4*p, -2*p, 1*p, 1*p);
+                ctx.fillRect(7*p, -2*p, 1*p, 1*p);
+
+                // Nose/Mouth
+                ctx.fillStyle = '#ffb6c1'; // Cute pink nose
+                ctx.fillRect(6*p, -1*p, 1*p, 1*p);
+
+                ctx.restore();
+            }
+
+            // Destruction and Reset logic
+            const navContainer = document.getElementById('nav-container');
+            const resetBtn = document.getElementById('reset-btn');
+
+            resetBtn.addEventListener('click', () => {
+                navContainer.classList.remove('knocked-down');
+                resetBtn.style.display = 'none';
+
+                // Jump cat away to prevent immediate re-destruction
+                catEntity.x = width / 2;
+                catEntity.y = height / 2;
+                catEntity.targetX = width / 2;
+                catEntity.targetY = height / 2;
+                catEntity.state = 'idle';
+                catEntity.isNearTarget = true;
+            });
+
+            function checkForDestruction() {
+                if (navContainer.classList.contains('knocked-down')) return;
+
+                const navRect = navContainer.getBoundingClientRect();
+
+                // Check if cat is near the nav bar
+                if (catEntity.x >= navRect.left && catEntity.x <= navRect.right &&
+                    catEntity.y >= navRect.top && catEntity.y <= navRect.bottom + 20) {
+
+                    // 50% chance to destroy
+                    if (Math.random() < 0.5) {
+                        navContainer.classList.add('knocked-down');
+                        resetBtn.style.display = 'flex';
+                    }
+                }
+            }
+
+            // Main loop
+            function gameLoop() {
+                ctx.clearRect(0, 0, width, height);
+
+                drawTwinkles();
+
+                updateCat();
+                drawCat();
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            gameLoop();
+        })();
+    </script>
+</body>
+</html>
