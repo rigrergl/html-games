@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabby's Site</title>
+    <style>
+        :root {
+            --bg-pink: #FF9CBD; /* Pastel/Punk Pink, contrast against black is > 10:1 */
+            --text-black: #000000;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-pink);
+            color: var(--text-black);
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        /* Twinkling background effect */
+        .stars-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .star {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            opacity: 0;
+            animation: twinkle var(--duration) infinite alternate ease-in-out;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0; transform: scale(0.5); }
+            100% { opacity: 0.8; transform: scale(1.5); }
+        }
+
+        /* Nav Bar */
+        nav {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 3px solid var(--text-black);
+            background-color: var(--bg-pink);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-origin: top left;
+        }
+
+        nav .logo {
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        nav .nav-links a {
+            margin-left: 20px;
+            text-decoration: none;
+            color: var(--text-black);
+            font-weight: bold;
+            font-size: 16px;
+            transition: opacity 0.2s;
+        }
+
+        nav .nav-links a:hover {
+            opacity: 0.6;
+        }
+
+        /* Content */
+        main {
+            position: relative;
+            z-index: 10;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            padding-bottom: 100px; /* Space for scrolling */
+        }
+
+        .content-section {
+            margin-bottom: 60px;
+        }
+
+        h1, h2 {
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 4px solid var(--text-black);
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        p {
+            font-size: 18px;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+
+        .image-placeholder {
+            width: 100%;
+            height: 400px;
+            background-color: var(--text-black);
+            color: var(--bg-pink);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            border: 4px solid var(--text-black);
+            box-shadow: 10px 10px 0px var(--text-black);
+            margin-bottom: 40px;
+        }
+
+        .image-placeholder span {
+            border: 2px dashed var(--bg-pink);
+            padding: 20px;
+        }
+
+        /* Cat Canvas */
+        #catCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            pointer-events: none; /* Let clicks pass through to the site */
+        }
+
+        /* Knockdown classes applied via JS */
+        .knocked-down {
+            transform: rotate(-5deg) translateY(20px) !important;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="stars-container" id="starsContainer"></div>
+
+    <nav id="navBar">
+        <div class="logo">GABBY</div>
+        <div class="nav-links">
+            <a href="#home">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+        </div>
+    </nav>
+
+    <main>
+        <section id="home" class="content-section">
+            <div class="image-placeholder">
+                <span>[ Gabby's Picture Here ]</span>
+            </div>
+            <h1>Ellohay, I am Gabby</h1>
+            <p>Lorem ipsum dolor sit amet. Uisqay uamqay ut iday emperatay. Ellentusquepay abitathay orbimay istiquetray enectussay et etusnay et malesuadamay amesfay ac urpistay egestas. Onnecday eu untmay uratay. Ntegray eget untmay ac purus inibusfay aximusmay ut sit amet ante. Orempay ipsum dolor sit amet, onsecteturcay adipiscing elit. Eneanay emperatay ntegravida nisl ac enenatisvay.</p>
+        </section>
+
+        <section id="about" class="content-section">
+            <h2>About Me</h2>
+            <p>Iamusday ut orci vel nisi egestas olutpatvay. Uscepay eget ulamcorpercay elit. Oinpray onvalliscay, est eu inibusfay acinialay, dui ex uctoratay elit, in elementum elit agnamay eget nunc. Eneanay onvalliscay odio onday elementum uctoratay. Oinpray ac nisi ut agnamay ittaesagcay emperatay non nec odio.</p>
+        </section>
+
+        <section id="contact" class="content-section">
+            <h2>Contact</h2>
+            <p>Eamcay ut ulamcorpercay augue. Etiam ultrices ipsum ac omodocay icumdict. ivamusVay egestas ex id eros endreritay, ut aliquam lorem ondimentumcay. Contact me at gabby@example.com!</p>
+        </section>
+    </main>
+
+    <canvas id="catCanvas"></canvas>
+
+    <script>
+        (function() {
+            // Background Twinkle Setup
+            const starsContainer = document.getElementById('starsContainer');
+            const numStars = 50;
+            for (let i = 0; i < numStars; i++) {
+                const star = document.createElement('div');
+                star.classList.add('star');
+                const size = Math.random() * 3 + 1;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.left = `${Math.random() * 100}vw`;
+                star.style.top = `${Math.random() * 100}vh`;
+                star.style.setProperty('--duration', `${Math.random() * 3 + 2}s`);
+                star.style.animationDelay = `${Math.random() * 5}s`;
+                starsContainer.appendChild(star);
+            }
+
+            // Canvas & Pointer Setup
+            const canvas = document.getElementById('catCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let width, height;
+
+            function resize() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            // Pointer tracking
+            const pointer = { x: width / 2, y: height / 2, active: false };
+
+            function updatePointer(e) {
+                if (e.touches && e.touches.length > 0) {
+                    pointer.x = e.touches[0].clientX;
+                    pointer.y = e.touches[0].clientY;
+                } else if (e.clientX !== undefined) {
+                    pointer.x = e.clientX;
+                    pointer.y = e.clientY;
+                }
+                pointer.active = true;
+            }
+
+            window.addEventListener('mousemove', updatePointer);
+            window.addEventListener('touchmove', updatePointer, { passive: true });
+            window.addEventListener('touchstart', updatePointer, { passive: true });
+            window.addEventListener('click', updatePointer);
+
+            // Cat Object
+            const cat = {
+                x: width / 2,
+                y: height / 2,
+                size: 20,
+                speed: 3,
+                vx: 0,
+                vy: 0,
+                angle: 0,
+                draw: function(ctx) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.angle);
+
+                    // Body
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.size, this.size * 1.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Head
+                    ctx.beginPath();
+                    ctx.arc(0, -this.size * 1.2, this.size * 0.9, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Ears
+                    ctx.beginPath();
+                    ctx.moveTo(-this.size * 0.6, -this.size * 1.8);
+                    ctx.lineTo(-this.size * 0.9, -this.size * 2.5);
+                    ctx.lineTo(-this.size * 0.2, -this.size * 2.0);
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.size * 0.6, -this.size * 1.8);
+                    ctx.lineTo(this.size * 0.9, -this.size * 2.5);
+                    ctx.lineTo(this.size * 0.2, -this.size * 2.0);
+                    ctx.fill();
+
+                    // Tail
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 6;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(0, this.size * 1.4);
+                    // wagging tail based on time
+                    const wag = Math.sin(Date.now() / 200) * 0.5;
+                    ctx.quadraticCurveTo(this.size * wag, this.size * 2.5, this.size * wag * 1.5, this.size * 3);
+                    ctx.stroke();
+
+                    // Eyes
+                    ctx.fillStyle = '#FF9CBD'; // Pink eyes
+                    ctx.beginPath();
+                    ctx.arc(-this.size * 0.3, -this.size * 1.4, this.size * 0.2, 0, Math.PI * 2);
+                    ctx.arc(this.size * 0.3, -this.size * 1.4, this.size * 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+            };
+
+            // State Machine
+            const states = {
+                IDLE: 'idle',
+                WALKING: 'walking',
+                LOOKING: 'looking'
+            };
+
+            cat.state = states.IDLE;
+            cat.stateTimer = 0;
+
+            function updateCat() {
+                const dx = pointer.x - cat.x;
+                const dy = pointer.y - cat.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Behavior Logic
+                if (pointer.active && distance > 50) {
+                    cat.state = states.WALKING;
+                } else if (cat.state === states.WALKING && distance <= 50) {
+                    cat.state = states.LOOKING;
+                    cat.stateTimer = 100; // look for a while
+                }
+
+                if (cat.state === states.LOOKING) {
+                    cat.stateTimer--;
+                    if (cat.stateTimer <= 0) {
+                        cat.state = states.IDLE;
+                    }
+                }
+
+                // Randomly walk around if idle
+                if (cat.state === states.IDLE) {
+                    if (Math.random() < 0.01) {
+                        pointer.x = Math.random() * width;
+                        pointer.y = Math.random() * height;
+                        pointer.active = true;
+                    }
+                }
+
+                // Movement
+                if (cat.state === states.WALKING) {
+                    // Turn towards pointer
+                    const targetAngle = Math.atan2(dy, dx) + Math.PI / 2; // Offset because cat draws facing 'up' (-y)
+
+                    // Smooth rotation
+                    let diff = targetAngle - cat.angle;
+                    // Normalize angle
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    cat.angle += diff * 0.1;
+
+                    // Move forward
+                    cat.x += Math.sin(cat.angle) * cat.speed;
+                    cat.y -= Math.cos(cat.angle) * cat.speed; // -cos because y is inverted in canvas
+                }
+
+                checkDestruction();
+            }
+
+            // Destruction Mechanic
+            const destructibles = [document.getElementById('navBar')];
+            let destructionCooldown = 0;
+
+            function checkDestruction() {
+                if (destructionCooldown > 0) {
+                    destructionCooldown--;
+                    return;
+                }
+
+                destructibles.forEach(element => {
+                    if (!element || element.classList.contains('knocked-down')) return;
+
+                    const rect = element.getBoundingClientRect();
+                    // Check if cat is near the element
+                    if (cat.x > rect.left && cat.x < rect.right && cat.y > rect.top && cat.y < rect.bottom) {
+                        // 50% chance to knock down
+                        if (Math.random() < 0.5) {
+                            element.classList.add('knocked-down');
+                            destructionCooldown = 300; // Prevent spamming
+
+                            // Reset loop
+                            setTimeout(() => {
+                                element.classList.remove('knocked-down');
+                            }, 5000); // Springs back after 5 seconds
+                        } else {
+                            destructionCooldown = 60; // Short cooldown if didn't knock down
+                        }
+                    }
+                });
+            }
+
+            // Main Loop
+            function loop() {
+                ctx.clearRect(0, 0, width, height);
+                updateCat();
+                cat.draw(ctx);
+                requestAnimationFrame(loop);
+            }
+
+            // Expose globally for step 5 & 6
+            window.catApp = {
+                cat: cat,
+                pointer: pointer,
+                canvas: canvas
+            };
+
+            requestAnimationFrame(loop);
+        })();
+    </script>
+</body>
+</html>
