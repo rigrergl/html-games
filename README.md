@@ -120,6 +120,19 @@ Hand-authored MIDI-driven music visualizations, running entirely in the browser 
 <img src="games/song-visualizer/songs/bach-format0/screenshot.png" alt="Song Visualizer Screenshot" width="400"/>
 </details>
 
+<details>
+<summary>Gabby Night Sky</summary>
+<br>
+
+An interactive webpage featuring a mysterious cat named Gabby roaming a beautiful, starry night sky. Click or tap to guide Gabby, and watch out—she might be mischievous and knock down the website navigation bar!
+
+[Play Game](https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/main/games/gabby-night-sky/gabby-night-sky.html)
+
+<br>
+
+<img src="games/gabby-night-sky/screenshot.png" alt="Gabby Night Sky Screenshot" width="400"/>
+</details>
+
 ## For Claude Code (AI Agent)
 
 **WARNING:** This project is designed to run inside disposable VM environments. The repository is configured to bypass all permission prompts (`bypassPermissions` is enabled by default in `.claude/settings.json`), allowing the agent to execute arbitrary shell commands, modify files, and make network requests without confirmation. **Do not run this on your personal machine or any environment with sensitive data.**
