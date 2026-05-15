@@ -369,6 +369,13 @@ function init() {
   updateView();
   highlightCircle();
   renderProgressionTrack();
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      playProgression();
+    }
+  });
 }
 
 function clearAllHighlights() {

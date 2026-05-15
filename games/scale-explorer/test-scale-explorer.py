@@ -11,7 +11,7 @@ def run():
         page.on("console", lambda msg: print(f"Console {msg.type}: {msg.text}"))
 
         page.goto("http://localhost:8000/games/scale-explorer/scale-explorer.html")
-        page.wait_for_selector(".container")
+        page.wait_for_selector(".synthwave-container")
 
         # Take a screenshot of the piano (default view)
         screenshot_path = os.path.join(script_dir, "screenshot.png")
@@ -19,7 +19,7 @@ def run():
         print(f"Screenshot saved to {screenshot_path}")
 
         # Test clicking a button
-        page.click("#play-scale-btn")
+        page.click("#play-prog-btn")
         page.wait_for_timeout(2000) # wait for part of scale sequence
 
         # Switch to guitar view
