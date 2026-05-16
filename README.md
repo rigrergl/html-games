@@ -120,6 +120,19 @@ Hand-authored MIDI-driven music visualizations, running entirely in the browser 
 <img src="games/song-visualizer/songs/bach-format0/screenshot.png" alt="Song Visualizer Screenshot" width="400"/>
 </details>
 
+<details>
+<summary>Gabby Dot Com</summary>
+<br>
+
+A cute, professional pink and black themed webpage featuring a mischievous interactive cat that roams around the screen, bothering you, and occasionally knocking down the navigation bar.
+
+[Play Game](https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/main/games/gabby-dot-com/gabby-dot-com.html)
+
+<br>
+
+<img src="games/gabby-dot-com/screenshot.png" alt="Gabby Dot Com Screenshot" width="400"/>
+</details>
+
 ## For Claude Code (AI Agent)
 
 **WARNING:** This project is designed to run inside disposable VM environments. The repository is configured to bypass all permission prompts (`bypassPermissions` is enabled by default in `.claude/settings.json`), allowing the agent to execute arbitrary shell commands, modify files, and make network requests without confirmation. **Do not run this on your personal machine or any environment with sensitive data.**
