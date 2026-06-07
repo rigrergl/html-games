@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabby Night Sky</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Prevent scrolling */
+            background: radial-gradient(circle at center, #112240 0%, #0a192f 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            user-select: none;
+        }
+
+        /* Canvas for stars */
+        #starCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none; /* Let clicks pass through */
+        }
+
+        /* Website mock layout */
+        .website-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #navbar {
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            box-sizing: border-box;
+            transform-origin: top center;
+        }
+
+        .nav-logo {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-link {
+            font-size: 16px;
+            opacity: 0.8;
+            cursor: pointer;
+            pointer-events: auto;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .hero {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .hero p {
+            font-size: 18px;
+            opacity: 0.8;
+        }
+
+        /* Reset Button */
+        #reset-btn {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 5px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            z-index: 20;
+        }
+
+        #reset-btn.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #reset-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Cat element */
+        #cat-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80px;
+            height: 80px;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through */
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s linear;
+        }
+
+        .cat-svg {
+            width: 100%;
+            height: 100%;
+            fill: #000; /* Silhouette */
+            filter: drop-shadow(0px 0px 5px rgba(255,255,255,0.2));
+            transform-origin: center;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="starCanvas"></canvas>
+
+    <div id="cat-container">
+        <!-- SVG silhouette of a cat. Simplified path for a seated/walking cat -->
+        <svg class="cat-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 30,80 Q 20,80 20,60 Q 20,40 35,40 C 35,30 25,20 28,15 C 32,18 38,25 45,28 C 50,25 60,25 65,28 C 72,25 78,18 82,15 C 85,20 75,30 75,40 Q 90,40 90,60 Q 90,80 80,80 Q 80,95 70,95 Q 65,95 65,80 L 45,80 Q 45,95 35,95 Q 30,95 30,80 Z M 20,60 Q 10,70 5,60 Q 0,50 10,40 Q 15,50 20,60 Z" />
+        </svg>
+    </div>
+
+    <div class="website-container">
+        <div id="navbar">
+            <div class="nav-logo">GABBY</div>
+            <div class="nav-links">
+                <div class="nav-link">Home</div>
+                <div class="nav-link">About</div>
+                <div class="nav-link">Adventures</div>
+            </div>
+        </div>
+
+        <div class="hero">
+            <h1>The Night Sky</h1>
+            <p>Click anywhere to guide the mysterious cat.</p>
+        </div>
+    </div>
+
+    <button id="reset-btn">Reset Room</button>
+
+    <script>
+        // --- Starfield Rendering ---
+        const canvas = document.getElementById('starCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const stars = [];
+        const numStars = 150;
+
+        for (let i = 0; i < numStars; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: Math.random() * 1.5 + 0.5,
+                alpha: Math.random(),
+                flickerSpeed: Math.random() * 0.02 + 0.005,
+                flickerDir: Math.random() > 0.5 ? 1 : -1
+            });
+        }
+
+        let animationFrameId;
+
+        function drawStars() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < stars.length; i++) {
+                const star = stars[i];
+
+                star.alpha += star.flickerSpeed * star.flickerDir;
+                if (star.alpha >= 1) {
+                    star.alpha = 1;
+                    star.flickerDir = -1;
+                } else if (star.alpha <= 0.1) {
+                    star.alpha = 0.1;
+                    star.flickerDir = 1;
+                }
+
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+                ctx.fill();
+            }
+
+            animationFrameId = requestAnimationFrame(drawStars);
+        }
+
+        drawStars();
+
+        // --- Cat Input Handling ---
+        const catContainer = document.getElementById('cat-container');
+        const catSvg = document.querySelector('.cat-svg');
+
+        // State for the cat's pathfinding and interaction
+        const catState = {
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            targetX: window.innerWidth / 2,
+            targetY: window.innerHeight / 2,
+            speed: 3,
+            state: 'idle', // idle, roaming, interacting
+            facingRight: true
+        };
+
+        // Initialize cat position
+        function updateCatDOMPosition() {
+            catContainer.style.transform = `translate(calc(-50% + ${catState.x}px), calc(-50% + ${catState.y}px))`;
+            catSvg.style.transform = catState.facingRight ? 'scaleX(1)' : 'scaleX(-1)';
+        }
+
+        // We center via absolute, so we need to account for screen coordinates directly
+        // Update styling: remove top/left 50% translation logic to simplify raw coordinate handling.
+        catContainer.style.top = '0px';
+        catContainer.style.left = '0px';
+        updateCatDOMPosition();
+
+        function setCatTarget(x, y) {
+            catState.targetX = x;
+            catState.targetY = y;
+            catState.state = 'roaming';
+
+            // Determine facing direction
+            if (x > catState.x) {
+                catState.facingRight = true;
+            } else if (x < catState.x) {
+                catState.facingRight = false;
+            }
+        }
+
+        // --- Physics & Destruction State ---
+        const navbar = document.getElementById('navbar');
+        let navbarDestroyed = false;
+        let navbarPhysics = {
+            y: 0,
+            vy: 0,
+            rotation: 0,
+            vr: 0,
+            gravity: 0.5
+        };
+
+        function checkCollision() {
+            if (navbarDestroyed) return;
+
+            const navRect = navbar.getBoundingClientRect();
+            const catRect = catContainer.getBoundingClientRect();
+
+            // Simple AABB collision check
+            const isColliding = !(
+                catRect.right < navRect.left ||
+                catRect.left > navRect.right ||
+                catRect.bottom < navRect.top ||
+                catRect.top > navRect.bottom
+            );
+
+            if (isColliding) {
+                // 50% chance to knock down
+                if (Math.random() < 0.5) {
+                    knockDownNavbar();
+                } else {
+                    // Give it a brief cooldown by moving target away slightly
+                    catState.targetY += 50;
+                }
+            }
+        }
+
+        const resetBtn = document.getElementById('reset-btn');
+
+        function knockDownNavbar() {
+            navbarDestroyed = true;
+            navbarPhysics.vy = -5; // Small initial bounce up
+            navbarPhysics.vr = (Math.random() - 0.5) * 5; // Random rotation
+
+            resetBtn.classList.add('visible');
+        }
+
+        // --- Reset Logic ---
+        resetBtn.addEventListener('click', () => {
+            // Restore Navbar
+            navbarDestroyed = false;
+            navbarPhysics.y = 0;
+            navbarPhysics.vy = 0;
+            navbarPhysics.rotation = 0;
+            navbarPhysics.vr = 0;
+            navbar.style.transform = `none`;
+
+            // Hide Reset Button
+            resetBtn.classList.remove('visible');
+
+            // Send Cat away slightly so it doesn't immediately knock it down again
+            setCatTarget(window.innerWidth / 2, window.innerHeight - 100);
+        });
+
+        // --- Main Game Loop ---
+        function gameLoop() {
+            // Cat Movement Logic
+            if (catState.state === 'roaming') {
+                const dx = catState.targetX - catState.x;
+                const dy = catState.targetY - catState.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > catState.speed) {
+                    catState.x += (dx / dist) * catState.speed;
+                    catState.y += (dy / dist) * catState.speed;
+                } else {
+                    catState.x = catState.targetX;
+                    catState.y = catState.targetY;
+                    catState.state = 'idle';
+                }
+
+                updateCatDOMPosition();
+                checkCollision();
+            } else if (catState.state === 'idle') {
+                // Randomly roam occasionally
+                if (Math.random() < 0.01) {
+                    const randomX = Math.random() * window.innerWidth;
+                    const randomY = Math.random() * window.innerHeight;
+                    setCatTarget(randomX, randomY);
+                }
+            }
+
+            // Physics Logic for Destructible Elements
+            if (navbarDestroyed) {
+                navbarPhysics.vy += navbarPhysics.gravity;
+                navbarPhysics.y += navbarPhysics.vy;
+                navbarPhysics.rotation += navbarPhysics.vr;
+
+                navbar.style.transform = `translateY(${navbarPhysics.y}px) rotate(${navbarPhysics.rotation}deg)`;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+
+        // Input listeners
+        document.addEventListener('mousedown', (e) => {
+            setCatTarget(e.clientX, e.clientY);
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                setCatTarget(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+    </script>
+</body>
+</html>
