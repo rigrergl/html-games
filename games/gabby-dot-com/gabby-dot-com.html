@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabby Dot Com</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            min-height: 100vh;
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Starry background effect */
+        .stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .star {
+            position: absolute;
+            background: #fff;
+            border-radius: 50%;
+            animation: twinkle linear infinite;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0.2; }
+            50% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+
+        /* Navigation */
+        #main-nav {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            position: relative;
+            z-index: 10;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transform-origin: top left;
+        }
+
+        #main-nav a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 10px;
+        }
+
+        #main-nav a:hover {
+            color: #7b9acc;
+        }
+
+        .destroyable {
+            transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        /* Hero Section */
+        .hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(123, 154, 204, 0.8);
+            letter-spacing: 5px;
+            text-transform: uppercase;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: #b0c4de;
+            margin-bottom: 40px;
+            max-width: 600px;
+        }
+
+        #hero-img {
+            max-width: 80%;
+            max-height: 50vh;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(123, 154, 204, 0.4), 0 0 10px rgba(255, 255, 255, 0.2);
+            object-fit: cover;
+            filter: drop-shadow(0 0 10px #7b9acc) contrast(1.2) brightness(0.9);
+        }
+
+        /* Canvas for Cat */
+        #catCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="stars" id="stars-container"></div>
+
+    <nav id="main-nav" class="destroyable">
+        <a href="#">Home</a>
+        <a href="#">About</a>
+        <a href="#">Adventures</a>
+        <a href="#">Contact</a>
+    </nav>
+
+    <main>
+        <div class="hero">
+            <h1>Gabby</h1>
+            <p>Mysterious adventurer. Night prowler. Follow the shadows.</p>
+            <img src="cat-silhouette.jpeg" alt="Cat Silhouette" id="hero-img">
+        </div>
+    </main>
+
+    <canvas id="catCanvas"></canvas>
+
+    <script>
+        (function() {
+            // Generate Stars
+            const starsContainer = document.getElementById('stars-container');
+            const numStars = 100;
+            for (let i = 0; i < numStars; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 3 + 1;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.animationDuration = `${Math.random() * 3 + 2}s`;
+                star.style.animationDelay = `${Math.random() * 2}s`;
+                starsContainer.appendChild(star);
+            }
+
+            // Canvas Setup
+            const canvas = document.getElementById('catCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let width, height;
+
+            function resize() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            // Cat State
+            let targetX = width / 2;
+            let targetY = height / 2;
+            let catX = targetX;
+            let catY = targetY;
+            let isMischievous = false;
+            let mischievousTimer = 0;
+            let rotation = 0;
+
+            // Update Target on Move
+            function updateTarget(x, y) {
+                targetX = x;
+                targetY = y;
+            }
+
+            window.addEventListener('mousemove', (e) => updateTarget(e.clientX, e.clientY));
+            window.addEventListener('touchmove', (e) => {
+                if(e.touches.length > 0) {
+                    updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, {passive: true});
+
+            // Interaction / Knockdown Logic
+            function handleInteraction(x, y) {
+                updateTarget(x, y);
+
+                const destroyables = document.querySelectorAll('.destroyable');
+
+                destroyables.forEach(elem => {
+                    const rect = elem.getBoundingClientRect();
+                    // Check if click is near the element (within ~50px)
+                    const isNear =
+                        x > rect.left - 50 &&
+                        x < rect.right + 50 &&
+                        y > rect.top - 50 &&
+                        y < rect.bottom + 50;
+
+                    if (isNear) {
+                        // 50% chance to knock down
+                        if (Math.random() > 0.5) {
+                            // Knock it down!
+                            elem.style.transform = "rotate(15deg) translateY(60px) translateX(20px)";
+
+                            // Trigger cute loop animation
+                            isMischievous = true;
+                            mischievousTimer = 0;
+
+                            // Reset after a few seconds
+                            setTimeout(() => {
+                                elem.style.transform = "";
+                            }, 4000);
+                        }
+                    }
+                });
+            }
+
+            window.addEventListener('click', (e) => handleInteraction(e.clientX, e.clientY));
+            window.addEventListener('touchstart', (e) => {
+                if(e.touches.length > 0) {
+                    handleInteraction(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, {passive: true});
+
+            // Render Loop
+            function drawCat() {
+                ctx.clearRect(0, 0, width, height);
+
+                // Movement physics (easing)
+                const dx = targetX - catX;
+                const dy = targetY - catY;
+                catX += dx * 0.05;
+                catY += dy * 0.05;
+
+                ctx.save();
+                ctx.translate(catX, catY);
+
+                // Cute loop animation if mischievous
+                if (isMischievous) {
+                    mischievousTimer++;
+                    rotation += 0.2; // Spin!
+                    ctx.rotate(rotation);
+
+                    // Add little hearts or stars around
+                    if (mischievousTimer % 10 === 0) {
+                        // could draw particles here, keeping it simple for now
+                    }
+
+                    if (mischievousTimer > 120) { // ~2 seconds at 60fps
+                        isMischievous = false;
+                        rotation = 0;
+                    }
+                } else {
+                    // Face movement direction slightly
+                    const angle = Math.atan2(dy, dx);
+                    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+                         // Only rotate if moving significantly
+                         // Basic flip based on direction
+                         if (dx < 0) ctx.scale(-1, 1);
+                    }
+                }
+
+                // Draw simple cat emoji for now
+                ctx.font = "40px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(isMischievous ? "😸" : "🐈", 0, 0);
+
+                ctx.restore();
+
+                requestAnimationFrame(drawCat);
+            }
+
+            drawCat();
+
+        })();
+    </script>
+</body>
+</html>
