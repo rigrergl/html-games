@@ -316,6 +316,7 @@
         <span id="muteBtn">♫</span>
     </div>
     <div id="powerUpHud" aria-hidden="true"></div>
+    <div id="specialPowerBtn" style="position: absolute; bottom: 80px; right: 20px; z-index: 20; background: rgba(0,255,255,0.2); border: 2px solid #0ff; color: #0ff; width: 60px; height: 60px; border-radius: 50%; display: none; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; user-select: none;">⚡</div>
 
     <div id="debugPanel" style="display: none;">
         <button id="debugPrev">&lt;</button>
@@ -356,6 +357,7 @@
                 <label style="font-size: 10px; color: #aaa;">PRIMARY</label>
                 <input type="color" id="primaryColorInput" value="#ffffff" style="width: 50px; height: 50px; padding: 0; border: 2px solid #555; border-radius: 5px; cursor: pointer; background: transparent;">
             </div>
+            <button class="btn" id="resetColorsBtn" style="font-size: 10px; padding: 8px;">RESET<br>COLORS</button>
             <div style="display:flex; flex-direction:column; align-items:center; gap: 10px;">
                 <label style="font-size: 10px; color: #aaa;">SECONDARY</label>
                 <input type="color" id="secondaryColorInput" value="#ff0000" style="width: 50px; height: 50px; padding: 0; border: 2px solid #555; border-radius: 5px; cursor: pointer; background: transparent;">
@@ -413,20 +415,42 @@
     };
 
     const SHIP_MODELS = [
-        { id: 'classic', name: 'CLASSIC', sprite: 'modelClassic', reqScore: 0, defaultColor1: '#ffffff', defaultColor2: '#ff0000' },
-        { id: 'interceptor', name: 'INTERCEPTOR', sprite: 'modelInterceptor', reqScore: 50000, defaultColor1: '#00ffff', defaultColor2: '#ff00ff' },
-        { id: 'bomber', name: 'BOMBER', sprite: 'modelBomber', reqScore: 150000, defaultColor1: '#ffa500', defaultColor2: '#555555' },
-        { id: 'ghost', name: 'GHOST', sprite: 'modelGhost', reqScore: 300000, defaultColor1: '#555555', defaultColor2: '#00ff00' },
-        { id: 'phoenix', name: 'PHOENIX', sprite: 'modelPhoenix', reqScore: 500000, defaultColor1: '#ff4500', defaultColor2: '#ffd700' },
-        { id: 'dragon', name: 'DRAGON', sprite: 'modelDragon', reqScore: 800000, defaultColor1: '#00ff00', defaultColor2: '#ff0000' },
-        { id: 'stryker', name: 'STRYKER', sprite: 'modelStryker', reqScore: 1200000, defaultColor1: '#ff00ff', defaultColor2: '#00ffff' },
-        { id: 'voidwalker', name: 'VOIDWALKER', sprite: 'modelVoidwalker', reqScore: 1600000, defaultColor1: '#4b0082', defaultColor2: '#8a2be2' },
-        { id: 'leviathan', name: 'LEVIATHAN', sprite: 'modelLeviathan', reqScore: 2000000, defaultColor1: '#000080', defaultColor2: '#00ced1' }
+        { id: 'classic', name: 'CLASSIC', sprite: 'modelClassic', reqScore: 0, defaultColor1: '#ffffff', defaultColor2: '#ff0000', powerId: 'spread', powerName: 'Spread Shot', powerColor: '#f80', lore: 'The reliable vanguard. Built for wide crowd control.' },
+        { id: 'interceptor', name: 'INTERCEPTOR', sprite: 'modelInterceptor', reqScore: 50000, defaultColor1: '#00ffff', defaultColor2: '#ff00ff', powerId: 'laser', powerName: 'Mega Laser', powerColor: '#0ff', lore: 'Nimble and precise. Cuts through lines like butter.' },
+        { id: 'bomber', name: 'BOMBER', sprite: 'modelBomber', reqScore: 150000, defaultColor1: '#ffa500', defaultColor2: '#555555', powerId: 'missile', powerName: 'Homing Missiles', powerColor: '#f0f', lore: 'Heavy ordnance. Never misses its mark.' },
+        { id: 'ghost', name: 'GHOST', sprite: 'modelGhost', reqScore: 300000, defaultColor1: '#555555', defaultColor2: '#00ff00', powerId: 'timewarp', powerName: 'Time Warp', powerColor: '#a0f', lore: 'Phases out of sync. Slows the universe to a crawl.' },
+        { id: 'phoenix', name: 'PHOENIX', sprite: 'modelPhoenix', reqScore: 500000, defaultColor1: '#ff4500', defaultColor2: '#ffd700', powerId: 'shield', powerName: 'Shield', powerColor: '#0f0', lore: 'Rises from the ashes. Impervious to minor impacts.' },
+        { id: 'dragon', name: 'DRAGON', sprite: 'modelDragon', reqScore: 800000, defaultColor1: '#00ff00', defaultColor2: '#ff0000', powerId: 'plasma', powerName: 'Plasma Wave', powerColor: '#0ef', lore: 'Spews concentrated stellar plasma like fire.' },
+        { id: 'stryker', name: 'STRYKER', sprite: 'modelStryker', reqScore: 1200000, defaultColor1: '#ff00ff', defaultColor2: '#00ffff', powerId: 'pierce', powerName: 'Piercing Shot', powerColor: '#ff4', lore: 'High-velocity rounds that overpenetrate hulls.' },
+        { id: 'voidwalker', name: 'VOIDWALKER', sprite: 'modelVoidwalker', reqScore: 1600000, defaultColor1: '#4b0082', defaultColor2: '#8a2be2', powerId: 'blackhole', powerName: 'Black Hole', powerColor: '#609', lore: 'Harnesses a contained singularity to suck in foes.' },
+        { id: 'leviathan', name: 'LEVIATHAN', sprite: 'modelLeviathan', reqScore: 2000000, defaultColor1: '#000080', defaultColor2: '#00ced1', powerId: 'freeze', powerName: 'Freeze Ray', powerColor: '#8ff', lore: 'Deep space cold fusion. Stops them in their tracks.' },
+        { id: 'swordfish', name: 'SWORDFISH', sprite: 'modelSwordfish', reqScore: 3000000, defaultColor1: '#ff0000', defaultColor2: '#555555', powerId: 'meteor', powerName: 'Meteor Shower', powerColor: '#0af', lore: 'A bounty hunter\'s classic ride. Strikes fast and hard.' }
     ];
     let selectedShipIndex = 0;
     let isShipUnlocked = true;
+    let specialPowerCooldown = 0;
+    const SPECIAL_POWER_MAX_COOLDOWN = 60000; // 60 seconds
 
     const SPRITES = {
+        modelSwordfish: [
+            ".......2........",
+            ".......2........",
+            "......121.......",
+            "......121.......",
+            ".....21212......",
+            ".....21112......",
+            "....2111112.....",
+            "...222111222....",
+            "..22.21112.22...",
+            "..22..111..22...",
+            ".222..D1D..222..",
+            ".22...D1D...22..",
+            "2222..111..2222.",
+            ".......2........",
+            "................",
+            "................"
+        ],
+
         modelClassic: [
             ".......L........",
             "......LCL.......",
@@ -2288,6 +2312,51 @@
         }
     }
 
+// --- SPECIAL POWER LOGIC ---
+    function activateSpecialPower() {
+        if (!gameRunning || lives <= 0 || specialPowerCooldown > 0) return;
+
+        let ship = SHIP_MODELS[userShipSettings.modelIndex];
+        if (ship && ship.powerId) {
+            activatePowerUp(ship.powerId, ship.powerName, ship.powerColor);
+            specialPowerCooldown = SPECIAL_POWER_MAX_COOLDOWN;
+            updateSpecialPowerUI();
+        }
+    }
+
+    function updateSpecialPowerUI() {
+        const btn = document.getElementById('specialPowerBtn');
+        if (!gameRunning) {
+            btn.style.display = 'none';
+            return;
+        }
+
+        btn.style.display = 'flex';
+        if (specialPowerCooldown > 0) {
+            let pct = (specialPowerCooldown / SPECIAL_POWER_MAX_COOLDOWN) * 100;
+            btn.style.background = `linear-gradient(to top, rgba(255,0,0,0.3) ${pct}%, rgba(0,0,0,0) ${pct}%)`;
+            btn.style.borderColor = '#f00';
+            btn.style.color = '#f00';
+            btn.style.fontSize = '20px';
+            btn.textContent = Math.ceil(specialPowerCooldown / 1000);
+        } else {
+            btn.style.background = 'rgba(0,255,255,0.2)';
+            btn.style.borderColor = '#0ff';
+            btn.style.color = '#0ff';
+            btn.style.fontSize = '24px';
+            btn.textContent = '⚡';
+        }
+    }
+
+    document.getElementById('specialPowerBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        activateSpecialPower();
+    });
+    document.getElementById('specialPowerBtn').addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        activateSpecialPower();
+    }, { passive: false });
+
     // --- FIRE LOGIC ---
     function fire() {
         let now = Date.now();
@@ -2333,6 +2402,31 @@
                 y: player.y - player.h * 0.5,
                 vy: -9 * scale,
                 pierce: true
+            });
+        } else if (currentPowerUp === 'blackhole') {
+            blackHoles.push({
+                x: player.x, y: player.y - player.h, vy: -4 * scale, radius: 0, life: 180
+            });
+            currentPowerUp = null; // one shot use
+        } else if (currentPowerUp === 'plasma') {
+            plasmaWaves.push({
+                x: player.x, y: player.y - player.h, vy: -6 * scale, width: 40 * scale, life: 60
+            });
+        } else if (currentPowerUp === 'meteor') {
+            for(let i=0; i<3; i++) {
+                meteors.push({
+                    x: Math.random() * W, y: -20, vy: 5 * scale + Math.random() * 5 * scale, size: 10 + Math.random()*15, life: 200
+                });
+            }
+            currentPowerUp = null; // One shot use
+        } else if (currentPowerUp === 'freeze') {
+            // Freeze ray
+            lasers.push({
+                x: player.x,
+                y: player.y,
+                width: 25 * scale,
+                life: 10,
+                freeze: true
             });
         } else if (currentPowerUp === 'timewarp') {
             // Normal shot while time warp is active (slow effect handled in update)
@@ -3105,11 +3199,13 @@
         player.x = W / 2;
         player.y = H - 100 * scale;
         powerUpHud.style.opacity = '0';
+        specialPowerCooldown = 0;
         updateScoreHud();
         document.getElementById('stageHud').textContent = 'STAGE 1';
         updateLivesHud();
         spawnWave();
         gameRunning = true;
+        updateSpecialPowerUI();
 
         if (autoFireInterval) clearInterval(autoFireInterval);
         autoFireInterval = setInterval(() => {
@@ -3121,8 +3217,9 @@
         gameLoop();
     }
 
-    function gameOver() {
+function gameOver() {
         gameRunning = false;
+        document.getElementById('specialPowerBtn').style.display = 'none';
         Sound.stopMusic();
         Sound.gameOverSound();
         if (autoFireInterval) { clearInterval(autoFireInterval); autoFireInterval = null; }
@@ -3176,11 +3273,22 @@
     let keys = {};
     document.addEventListener('keydown', function(e) { keys[e.key] = true; });
     document.addEventListener('keyup', function(e) { keys[e.key] = false; });
-    setInterval(function() {
+setInterval(function() {
         if (!gameRunning) return;
         if (keys['ArrowLeft'] || keys['a']) player.x = Math.max(player.w * 0.5, player.x - player.speed * scale);
         if (keys['ArrowRight'] || keys['d']) player.x = Math.min(W - player.w * 0.5, player.x + player.speed * scale);
         if (keys[' ']) fire();
+        if (keys['Shift'] || keys['e']) activateSpecialPower();
+
+        if (specialPowerCooldown > 0) {
+            specialPowerCooldown -= 16;
+            if (specialPowerCooldown <= 0) {
+                specialPowerCooldown = 0;
+                updateSpecialPowerUI(); // force update when reaching 0
+            } else if (frameCount % 10 === 0) {
+                updateSpecialPowerUI();
+            }
+        }
     }, 16);
 
 
@@ -3240,7 +3348,7 @@
             shipNameEl.textContent = ship.name;
             shipContainer.appendChild(shipNameEl);
 
-            const shipStatusEl = document.createElement('span');
+                        const shipStatusEl = document.createElement('span');
             shipStatusEl.style.fontSize = '10px';
             shipStatusEl.style.marginTop = '5px';
             shipStatusEl.style.height = '12px';
@@ -3252,6 +3360,26 @@
                 shipStatusEl.style.color = '#f00';
             }
             shipContainer.appendChild(shipStatusEl);
+
+            if (isUnlocked) {
+                const loreEl = document.createElement('p');
+                loreEl.style.fontSize = '8px';
+                loreEl.style.color = '#888';
+                loreEl.style.marginTop = '8px';
+                loreEl.style.textAlign = 'center';
+                loreEl.style.fontStyle = 'italic';
+                loreEl.style.lineHeight = '1.2';
+                loreEl.textContent = ship.lore;
+                shipContainer.appendChild(loreEl);
+
+                const powerEl = document.createElement('div');
+                powerEl.style.fontSize = '9px';
+                powerEl.style.color = ship.powerColor;
+                powerEl.style.marginTop = '4px';
+                powerEl.style.fontWeight = 'bold';
+                powerEl.textContent = `SPECIAL: ${ship.powerName.toUpperCase()}`;
+                shipContainer.appendChild(powerEl);
+            }
 
             shipGrid.appendChild(shipContainer);
         });
@@ -3307,9 +3435,17 @@
         updateCustomizationUI();
     });
 
-    document.getElementById('secondaryColorInput').addEventListener('input', function(e) {
+document.getElementById('secondaryColorInput').addEventListener('input', function(e) {
         let shipId = SHIP_MODELS[userShipSettings.modelIndex].id;
         userShipSettings.colors[shipId].c2 = e.target.value;
+        updateCustomizationUI();
+    });
+
+    document.getElementById('resetColorsBtn').addEventListener('click', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        let ship = SHIP_MODELS[userShipSettings.modelIndex];
+        userShipSettings.colors[ship.id].c1 = ship.defaultColor1;
+        userShipSettings.colors[ship.id].c2 = ship.defaultColor2;
         updateCustomizationUI();
     });
 
