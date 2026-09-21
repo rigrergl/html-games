@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hide and Seek</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #111; /* Dark background */
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden; /* Prevent scrolling */
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #uiLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas */
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        #screens {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 20;
+            pointer-events: auto; /* Catch clicks for buttons */
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 0 #555;
+            color: #fff;
+            letter-spacing: 2px;
+        }
+
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: 2px solid #fff;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1.2rem;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s, background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .stats-box {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="uiLayer">
+        <div class="hud">
+            <div id="scoreDisplay">Score: 0</div>
+            <div id="totalItemsDisplay">Total Collected: 0</div>
+        </div>
+    </div>
+
+    <div id="screens">
+        <div id="startScreen" class="screen active">
+            <h1>Hide & Seek</h1>
+            <p>You are in the dark. Find the glowing orbs before the shadow catches you!</p>
+            <div class="stats-box">
+                <div>Total Orbs Collected (All Time): <span id="startTotalDisplay">0</span></div>
+            </div>
+            <button id="startBtn">START GAME</button>
+        </div>
+
+        <div id="gameOverScreen" class="screen">
+            <h1 style="color: #ff5555;">Caught!</h1>
+            <p>The shadow found you.</p>
+            <div class="stats-box">
+                <div>Score: <span id="endScoreDisplay">0</span></div>
+                <div>Total Orbs Collected: <span id="endTotalDisplay">0</span></div>
+            </div>
+            <button id="restartBtn">TRY AGAIN</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // UI Elements
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const screens = document.getElementById('screens');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const totalItemsDisplay = document.getElementById('totalItemsDisplay');
+    const startTotalDisplay = document.getElementById('startTotalDisplay');
+    const endScoreDisplay = document.getElementById('endScoreDisplay');
+    const endTotalDisplay = document.getElementById('endTotalDisplay');
+
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
+
+    // Game State
+    let animationId;
+    let isPlaying = false;
+    let score = 0;
+    let totalCollected = parseInt(localStorage.getItem('hideAndSeekTotalCollected')) || 0;
+
+    // Map bounds
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    // Entities
+    const player = { x: width/2, y: height/2, radius: 15, color: '#fff', speed: 5, lightRadius: 150 };
+    const target = { x: 0, y: 0, radius: 10, color: '#ffeb3b', vx: 0, vy: 0, speed: 2 };
+    const hunter = { x: 0, y: 0, radius: 20, color: '#ff0000', speed: 1.5 }; // red shadow
+    const obstacles = [];
+
+    // Setup Canvas Size
+    function resizeCanvas() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        // Keep player on screen if resized
+        player.x = Math.min(Math.max(player.x, 0), width);
+        player.y = Math.min(Math.max(player.y, 0), height);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function updateTotalDisplay() {
+        startTotalDisplay.textContent = totalCollected;
+        endTotalDisplay.textContent = totalCollected;
+        totalItemsDisplay.textContent = "Total Collected: " + totalCollected;
+    }
+    updateTotalDisplay();
+
+    // Map generation
+    function generateObstacles() {
+        obstacles.length = 0;
+        const numObstacles = Math.floor((width * height) / 40000); // Density based
+
+        for (let i = 0; i < numObstacles; i++) {
+            const w = 50 + Math.random() * 100;
+            const h = 50 + Math.random() * 100;
+            const x = Math.random() * (width - w);
+            const y = Math.random() * (height - h);
+
+            // Don't spawn right on player
+            const centerX = x + w/2;
+            const centerY = y + h/2;
+            const distToPlayer = Math.hypot(centerX - player.x, centerY - player.y);
+
+            if (distToPlayer > 150) {
+                obstacles.push({ x, y, width: w, height: h });
+            } else {
+                i--; // Retry
+            }
+        }
+    }
+
+    function spawnTarget() {
+        let valid = false;
+        while (!valid) {
+            target.x = target.radius + Math.random() * (width - target.radius * 2);
+            target.y = target.radius + Math.random() * (height - target.radius * 2);
+
+            // Avoid player
+            if (Math.hypot(target.x - player.x, target.y - player.y) < 200) continue;
+
+            // Avoid obstacles
+            let inObstacle = false;
+            for (let obs of obstacles) {
+                if (target.x + target.radius > obs.x && target.x - target.radius < obs.x + obs.width &&
+                    target.y + target.radius > obs.y && target.y - target.radius < obs.y + obs.height) {
+                    inObstacle = true;
+                    break;
+                }
+            }
+            if (!inObstacle) valid = true;
+        }
+
+        // Random direction
+        const angle = Math.random() * Math.PI * 2;
+        target.vx = Math.cos(angle) * target.speed;
+        target.vy = Math.sin(angle) * target.speed;
+    }
+
+    function spawnHunter() {
+        let valid = false;
+        while(!valid) {
+            // Spawn on edges
+            if (Math.random() > 0.5) {
+                hunter.x = Math.random() > 0.5 ? 0 : width;
+                hunter.y = Math.random() * height;
+            } else {
+                hunter.x = Math.random() * width;
+                hunter.y = Math.random() > 0.5 ? 0 : height;
+            }
+
+            if (Math.hypot(hunter.x - player.x, hunter.y - player.y) > 300) {
+                valid = true;
+            }
+        }
+    }
+
+    function initGame() {
+        player.x = width / 2;
+        player.y = height / 2;
+        score = 0;
+        scoreDisplay.textContent = "Score: 0";
+        hunter.speed = 1.5;
+
+        generateObstacles();
+        spawnTarget();
+        spawnHunter();
+
+        screens.style.display = 'none';
+        startScreen.classList.remove('active');
+        gameOverScreen.classList.remove('active');
+
+        isPlaying = true;
+        update();
+    }
+
+    function gameOver() {
+        isPlaying = false;
+        cancelAnimationFrame(animationId);
+        screens.style.display = 'flex';
+        gameOverScreen.classList.add('active');
+        endScoreDisplay.textContent = score;
+    }
+
+    // Input state
+    const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+
+    // Keyboard events
+    window.addEventListener('keydown', (e) => {
+        if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+    });
+    window.addEventListener('keyup', (e) => {
+        if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+    });
+
+    // Touch / Mouse Dragging logic with relative delta tracking
+    let isDragging = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    function handleDragStart(e) {
+        if (!isPlaying) return;
+        isDragging = true;
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        lastX = clientX;
+        lastY = clientY;
+    }
+
+    function handleDragMove(e) {
+        if (!isPlaying || !isDragging) return;
+        e.preventDefault(); // Prevent scrolling on mobile
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        let deltaX = clientX - lastX;
+        let deltaY = clientY - lastY;
+
+        // Scale appropriately if canvas CSS size diff from internal size
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        player.x += deltaX * scaleX;
+        player.y += deltaY * scaleY;
+
+        lastX = clientX;
+        lastY = clientY;
+    }
+
+    function handleDragEnd() {
+        isDragging = false;
+    }
+
+    window.addEventListener('mousedown', handleDragStart);
+    window.addEventListener('mousemove', handleDragMove, { passive: false });
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchstart', handleDragStart, { passive: false });
+    window.addEventListener('touchmove', handleDragMove, { passive: false });
+    window.addEventListener('touchend', handleDragEnd);
+
+    // Collision Helper
+    function checkCircleRectCollision(circle, rect) {
+        let testX = circle.x;
+        let testY = circle.y;
+
+        if (circle.x < rect.x) testX = rect.x;      // test left edge
+        else if (circle.x > rect.x + rect.width) testX = rect.x + rect.width;   // right edge
+        if (circle.y < rect.y) testY = rect.y;      // top edge
+        else if (circle.y > rect.y + rect.height) testY = rect.y + rect.height; // bottom edge
+
+        let distX = circle.x - testX;
+        let distY = circle.y - testY;
+        let distance = Math.sqrt((distX*distX) + (distY*distY));
+
+        return distance <= circle.radius;
+    }
+
+    function draw() {
+        // Clear background
+        ctx.fillStyle = '#222'; // Base dark ground
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw Obstacles (under darkness)
+        ctx.fillStyle = '#444';
+        for (let obs of obstacles) {
+            ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        }
+
+        // Draw Target
+        ctx.fillStyle = target.color;
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw Hunter (barely visible in the dark unless near)
+        ctx.fillStyle = hunter.color;
+        ctx.beginPath();
+        ctx.arc(hunter.x, hunter.y, hunter.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw Player
+        ctx.fillStyle = player.color;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- Darkness Overlay Logic ---
+
+        // Create an offscreen canvas for the darkness
+        // (Using standard globalCompositeOperation for performance)
+        ctx.globalCompositeOperation = 'source-over';
+
+        // Fill screen with pitch black
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+        ctx.fillRect(0, 0, width, height);
+
+        // Erase the darkness around the player to create light
+        ctx.globalCompositeOperation = 'destination-out';
+
+        // Radial gradient for smooth light falloff
+        let gradient = ctx.createRadialGradient(player.x, player.y, player.radius, player.x, player.y, player.lightRadius);
+        gradient.addColorStop(0, 'rgba(0,0,0,1)'); // Fully transparent dark overlay
+        gradient.addColorStop(1, 'rgba(0,0,0,0)'); // Fully opaque dark overlay
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.lightRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Reset composite operation for next frame
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function update() {
+        if (!isPlaying) return;
+
+        // 1. Player Movement (Keyboard)
+        let dx = 0;
+        let dy = 0;
+        if (keys.w || keys.ArrowUp) dy -= player.speed;
+        if (keys.s || keys.ArrowDown) dy += player.speed;
+        if (keys.a || keys.ArrowLeft) dx -= player.speed;
+        if (keys.d || keys.ArrowRight) dx += player.speed;
+
+        // Normalize diagonal movement
+        if (dx !== 0 && dy !== 0) {
+            let length = Math.sqrt(dx*dx + dy*dy);
+            dx = (dx / length) * player.speed;
+            dy = (dy / length) * player.speed;
+        }
+
+        player.x += dx;
+        player.y += dy;
+
+        // Player Collision with Map Bounds
+        player.x = Math.max(player.radius, Math.min(width - player.radius, player.x));
+        player.y = Math.max(player.radius, Math.min(height - player.radius, player.y));
+
+        // Player Collision with Obstacles (Slide off)
+        for (let obs of obstacles) {
+            if (checkCircleRectCollision(player, obs)) {
+                // Determine collision side and push back
+                let closestX = Math.max(obs.x, Math.min(player.x, obs.x + obs.width));
+                let closestY = Math.max(obs.y, Math.min(player.y, obs.y + obs.height));
+
+                let distX = player.x - closestX;
+                let distY = player.y - closestY;
+                let distance = Math.hypot(distX, distY);
+
+                if (distance < player.radius && distance > 0) {
+                    let overlap = player.radius - distance;
+                    player.x += (distX / distance) * overlap;
+                    player.y += (distY / distance) * overlap;
+                }
+            }
+        }
+
+        // 2. Target Movement (Random wandering + bouncing)
+        target.x += target.vx;
+        target.y += target.vy;
+
+        // Target Bounds Bounce
+        if (target.x - target.radius < 0 || target.x + target.radius > width) target.vx *= -1;
+        if (target.y - target.radius < 0 || target.y + target.radius > height) target.vy *= -1;
+
+        // Target Obstacle Bounce
+        for (let obs of obstacles) {
+            if (checkCircleRectCollision(target, obs)) {
+                // Simple bounce: reverse both for chaos, or try to slide
+                let closestX = Math.max(obs.x, Math.min(target.x, obs.x + obs.width));
+                let closestY = Math.max(obs.y, Math.min(target.y, obs.y + obs.height));
+
+                let distX = target.x - closestX;
+                let distY = target.y - closestY;
+
+                if (Math.abs(distX) > Math.abs(distY)) {
+                    target.vx *= -1;
+                } else {
+                    target.vy *= -1;
+                }
+
+                // Add a little randomness
+                const angle = Math.atan2(target.vy, target.vx) + (Math.random() - 0.5) * 0.5;
+                target.vx = Math.cos(angle) * target.speed;
+                target.vy = Math.sin(angle) * target.speed;
+
+                // Move out of collision
+                target.x += target.vx * 2;
+                target.y += target.vy * 2;
+            }
+        }
+
+        // 3. Hunter Movement (Chasing Player)
+        let angleToPlayer = Math.atan2(player.y - hunter.y, player.x - hunter.x);
+        hunter.x += Math.cos(angleToPlayer) * hunter.speed;
+        hunter.y += Math.sin(angleToPlayer) * hunter.speed;
+
+        // 4. Collection / Win Condition
+        if (Math.hypot(player.x - target.x, player.y - target.y) < player.radius + target.radius) {
+            score++;
+            scoreDisplay.textContent = "Score: " + score;
+
+            totalCollected++;
+            localStorage.setItem('hideAndSeekTotalCollected', totalCollected);
+            updateTotalDisplay();
+
+            // Increase difficulty slightly
+            hunter.speed += 0.1;
+
+            spawnTarget();
+        }
+
+        // 5. Fail Condition (Hunter catches player)
+        // Give the player a tiny bit of leeway (radius - 5)
+        if (Math.hypot(player.x - hunter.x, player.y - hunter.y) < player.radius + hunter.radius - 5) {
+            gameOver();
+            return;
+        }
+
+        draw();
+        animationId = requestAnimationFrame(update);
+    }
+
+    // Bind buttons
+    startBtn.addEventListener('click', initGame);
+    restartBtn.addEventListener('click', initGame);
+
+})();
+</script>
+
+</body>
+</html>

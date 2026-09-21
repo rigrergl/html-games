@@ -120,6 +120,19 @@ Hand-authored MIDI-driven music visualizations, running entirely in the browser 
 <img src="games/song-visualizer/songs/bach-format0/screenshot.png" alt="Song Visualizer Screenshot" width="400"/>
 </details>
 
+<details>
+<summary>Hide and Seek</summary>
+<br>
+
+A dark and atmospheric top-down browser game built with HTML5 Canvas. You play as a source of light navigating a dark map scattered with obstacles. Your objective is to find and collect the wandering glowing orbs while avoiding the shadow hunter that is constantly chasing you.
+
+[Play Game](https://htmlpreview.github.io/?https://github.com/rigrergl/html-games/blob/main/games/hide-and-seek/hide-and-seek.html)
+
+<br>
+
+<img src="games/hide-and-seek/screenshot.png" alt="Hide and Seek Screenshot" width="400"/>
+</details>
+
 ## For Claude Code (AI Agent)
 
 **WARNING:** This project is designed to run inside disposable VM environments. The repository is configured to bypass all permission prompts (`bypassPermissions` is enabled by default in `.claude/settings.json`), allowing the agent to execute arbitrary shell commands, modify files, and make network requests without confirmation. **Do not run this on your personal machine or any environment with sensitive data.**
